@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#110d2b" />
+    <title>Faughnan Comics</title>
+    <link rel="stylesheet" href="./comic-reader.css?v=20260313a" />
+  </head>
+  <body class="comic-body">
+    <div class="backdrop-layer" aria-hidden="true"></div>
+    <div class="comic-shell">
+      <header class="site-header">
+        <div class="brand-block">
+          <p class="brand-kicker">Digital Library</p>
+          <h1 id="siteTitle">Faughnan Comics</h1>
+          <p id="siteTagline" class="site-tagline">Tap a book cover to start reading.</p>
+        </div>
+        <p id="shareHint" class="header-chip">Share this page as a link or QR code.</p>
+      </header>
+
+      <main class="page-layout">
+        <section id="libraryView" class="library-view">
+          <article class="hero-card">
+            <div class="hero-copy">
+              <p class="section-kicker">Featured Release</p>
+              <h2>Phone-friendly comic reading.</h2>
+              <p>
+                Open the book, move page to page, and double-click or double-tap
+                the art to zoom in on details.
+              </p>
+            </div>
+            <div class="hero-actions">
+              <button id="openFirstBookBtn" class="primary-button" type="button">Open featured book</button>
+              <p class="hero-note">Arrow keys, swipe gestures, thumbnails, and fullscreen are built in.</p>
+            </div>
+          </article>
+
+          <section class="shelf-section" aria-labelledby="bookshelfTitle">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Bookshelf</p>
+                <h2 id="bookshelfTitle">Pick a comic</h2>
+              </div>
+              <p class="section-note">Readers can start here from a shared link and click the cover to read.</p>
+            </div>
+
+            <div id="bookGrid" class="book-grid"></div>
+          </section>
+        </section>
+
+        <section id="readerView" class="reader-view" hidden>
+          <div class="reader-topbar">
+            <button id="backToShelfBtn" class="ghost-button" type="button">Shelf</button>
+            <div class="reader-meta">
+              <p class="section-kicker">Now Reading</p>
+              <h2 id="readerTitle">Loading...</h2>
+              <p id="readerByline" class="reader-byline"></p>
+            </div>
+            <div class="reader-actions">
+              <button id="fullscreenBtn" class="ghost-button" type="button">Fullscreen</button>
+              <button id="zoomResetBtn" class="ghost-button" type="button" disabled>Reset zoom</button>
+            </div>
+          </div>
+
+          <div class="reader-stage-wrap">
+            <button id="prevPageBtn" class="edge-nav edge-nav-left" type="button" aria-label="Previous page">Prev</button>
+
+            <div id="pageStage" class="page-stage" tabindex="0" aria-live="polite">
+              <div id="loadingOverlay" class="loading-overlay">Loading page...</div>
+              <div id="hintBubble" class="hint-bubble">Double-click to zoom.</div>
+              <div id="pageMedia" class="page-media">
+                <img id="pageImage" alt="" draggable="false" />
+              </div>
+            </div>
+
+            <button id="nextPageBtn" class="edge-nav edge-nav-right" type="button" aria-label="Next page">Next</button>
+          </div>
+
+          <div class="reader-footer">
+            <div class="scrubber-row">
+              <label class="scrubber-label" for="pageScrubber">Page</label>
+              <input id="pageScrubber" type="range" min="1" max="1" value="1" />
+              <output id="pageCountLabel" for="pageScrubber">1 / 1</output>
+            </div>
+
+            <div id="thumbnailRail" class="thumbnail-rail" aria-label="Page thumbnails"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./comic-reader.js?v=20260313a"></script>
+  </body>
+</html>

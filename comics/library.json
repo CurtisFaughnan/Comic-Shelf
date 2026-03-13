@@ -1,0 +1,16 @@
+{
+  "siteTitle": "Faughnan Comics",
+  "siteTagline": "Tap a book cover to start reading on phone, tablet, or desktop.",
+  "shareHint": "Share this page as a link or turn the link into a QR code.",
+  "books": [
+    {
+      "slug": "cool-kids-stretch",
+      "title": "Cool Kids: Stretch",
+      "byline": "Written by Blake Faughnan | Art by Curtis Faughnan",
+      "description": "A digital edition optimized for direct sharing, page-by-page reading, swipe navigation, and tap-to-zoom detail viewing.",
+      "badge": "36 pages",
+      "shelfCover": "./comics/cool-kids-stretch/thumbnails/01.jpg",
+      "manifest": "./comics/cool-kids-stretch/manifest.json"
+    }
+  ]
+}

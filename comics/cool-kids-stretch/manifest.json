@@ -1,0 +1,11 @@
+{
+  "slug": "cool-kids-stretch",
+  "title": "Cool Kids: Stretch",
+  "subtitle": "Digital Edition",
+  "writers": ["Blake Faughnan"],
+  "artists": ["Curtis Faughnan"],
+  "pageCount": 36,
+  "pageImagePattern": "./comics/cool-kids-stretch/pages/{page}.jpg",
+  "thumbnailPattern": "./comics/cool-kids-stretch/thumbnails/{page}.jpg",
+  "panels": {}
+}
