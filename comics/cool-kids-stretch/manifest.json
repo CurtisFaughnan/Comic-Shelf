@@ -4,8 +4,11 @@
   "subtitle": "Digital Edition",
   "writers": ["Blake Faughnan"],
   "artists": ["Curtis Faughnan"],
+  "readingDirection": "LTR",
+  "defaultMode": "guided",
   "pageCount": 36,
   "pageImagePattern": "./comics/cool-kids-stretch/pages/{page}.jpg",
   "thumbnailPattern": "./comics/cool-kids-stretch/thumbnails/{page}.jpg",
+  "panelPattern": "./comics/cool-kids-stretch/panels/{panelId}.json",
   "panels": {}
 }

@@ -7,7 +7,7 @@
       "slug": "cool-kids-stretch",
       "title": "Cool Kids: Stretch",
       "byline": "Written by Blake Faughnan | Art by Curtis Faughnan",
-      "description": "A digital edition optimized for direct sharing, page-by-page reading, swipe navigation, and tap-to-zoom detail viewing.",
+      "description": "A shareable digital edition built for immersive guided reading with panel-to-panel progression and page fallback.",
       "badge": "36 pages",
       "shelfCover": "./comics/cool-kids-stretch/thumbnails/01.jpg",
       "manifest": "./comics/cool-kids-stretch/manifest.json"

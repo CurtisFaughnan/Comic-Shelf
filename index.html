@@ -26,13 +26,13 @@
               <p class="section-kicker">Featured Release</p>
               <h2>Phone-friendly comic reading.</h2>
               <p>
-                Open the book, move page to page, and double-click or double-tap
-                the art to zoom in on details.
+                Open the book, read panel to panel, and keep the comic full-screen
+                while the controls stay out of the way.
               </p>
             </div>
             <div class="hero-actions">
               <button id="openFirstBookBtn" class="primary-button" type="button">Open featured book</button>
-              <p class="hero-note">Arrow keys, swipe gestures, thumbnails, and fullscreen are built in.</p>
+              <p class="hero-note">Guided view, page view fallback, tap zones, thumbnails, and fullscreen are built in.</p>
             </div>
           </article>
 
@@ -50,41 +50,46 @@
         </section>
 
         <section id="readerView" class="reader-view" hidden>
-          <div class="reader-topbar">
-            <button id="backToShelfBtn" class="ghost-button" type="button">Shelf</button>
-            <div class="reader-meta">
-              <p class="section-kicker">Now Reading</p>
-              <h2 id="readerTitle">Loading...</h2>
-              <p id="readerByline" class="reader-byline"></p>
-            </div>
-            <div class="reader-actions">
-              <button id="fullscreenBtn" class="ghost-button" type="button">Fullscreen</button>
-              <button id="zoomResetBtn" class="ghost-button" type="button" disabled>Reset zoom</button>
-            </div>
-          </div>
-
-          <div class="reader-stage-wrap">
-            <button id="prevPageBtn" class="edge-nav edge-nav-left" type="button" aria-label="Previous page">Prev</button>
-
-            <div id="pageStage" class="page-stage" tabindex="0" aria-live="polite">
-              <div id="loadingOverlay" class="loading-overlay">Loading page...</div>
-              <div id="hintBubble" class="hint-bubble">Double-click to zoom.</div>
-              <div id="pageMedia" class="page-media">
-                <img id="pageImage" alt="" draggable="false" />
+          <div class="reader-viewport">
+            <div id="readerTopbar" class="reader-topbar reader-chrome">
+              <button id="backToShelfBtn" class="ghost-button" type="button">Shelf</button>
+              <div class="reader-meta">
+                <p class="section-kicker">Now Reading</p>
+                <h2 id="readerTitle">Loading...</h2>
+                <p id="readerByline" class="reader-byline"></p>
+              </div>
+              <div class="reader-actions">
+                <button id="viewModeBtn" class="ghost-button" type="button">Guided</button>
+                <button id="pageDrawerToggleBtn" class="ghost-button" type="button" aria-expanded="false">Pages</button>
+                <button id="fullscreenBtn" class="ghost-button" type="button">Fullscreen</button>
               </div>
             </div>
 
-            <button id="nextPageBtn" class="edge-nav edge-nav-right" type="button" aria-label="Next page">Next</button>
-          </div>
-
-          <div class="reader-footer">
-            <div class="scrubber-row">
-              <label class="scrubber-label" for="pageScrubber">Page</label>
-              <input id="pageScrubber" type="range" min="1" max="1" value="1" />
-              <output id="pageCountLabel" for="pageScrubber">1 / 1</output>
+            <div id="pageStage" class="page-stage" tabindex="0" aria-live="polite">
+              <div id="loadingOverlay" class="loading-overlay">Loading page...</div>
+              <div id="hintBubble" class="hint-bubble">Tap left or right to read. Tap middle for menu.</div>
+              <button id="prevPageBtn" class="nav-zone nav-zone-left" type="button" aria-label="Previous page">
+                <span class="visually-hidden">Previous page</span>
+              </button>
+              <button id="nextPageBtn" class="nav-zone nav-zone-right" type="button" aria-label="Next page">
+                <span class="visually-hidden">Next page</span>
+              </button>
+              <div id="pageMedia" class="page-media">
+                <img id="pageImage" alt="" draggable="false" />
+              </div>
+              <output id="pageCountPill" class="page-count-pill">1 / 1</output>
             </div>
 
-            <div id="thumbnailRail" class="thumbnail-rail" aria-label="Page thumbnails"></div>
+            <div id="readerFooter" class="reader-footer reader-chrome">
+              <div class="scrubber-row">
+                <label class="scrubber-label" for="pageScrubber">Page</label>
+                <input id="pageScrubber" type="range" min="1" max="1" value="1" />
+                <output id="pageCountLabel" for="pageScrubber">1 / 1</output>
+              </div>
+              <div id="thumbnailDrawer" class="thumbnail-drawer" aria-hidden="true">
+                <div id="thumbnailRail" class="thumbnail-rail" aria-label="Page thumbnails"></div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
