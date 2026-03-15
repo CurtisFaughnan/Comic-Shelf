@@ -1,6 +1,6 @@
 const LIBRARY_PATH = "./comics/library.json";
 const DEFAULT_IMAGE_SIZE = { width: 1600, height: 2533 };
-const UI_HIDE_DELAY_MS = 2200;
+const UI_HIDE_DELAY_MS = 1600;
 const PANEL_PADDING_PX = 34;
 const MAX_GUIDED_ZOOM = 10;
 const SWIPE_THRESHOLD = 70;
@@ -13,12 +13,16 @@ const dom = {
   libraryView: document.querySelector("#libraryView"),
   readerView: document.querySelector("#readerView"),
   readerTopbar: document.querySelector("#readerTopbar"),
-  readerFooter: document.querySelector("#readerFooter"),
+  pageBrowser: document.querySelector("#pageBrowser"),
+  pageBrowserBackdrop: document.querySelector("#pageBrowserBackdrop"),
+  pageBrowserCloseBtn: document.querySelector("#pageBrowserCloseBtn"),
   bookGrid: document.querySelector("#bookGrid"),
   openFirstBookBtn: document.querySelector("#openFirstBookBtn"),
   backToShelfBtn: document.querySelector("#backToShelfBtn"),
   readerTitle: document.querySelector("#readerTitle"),
   readerByline: document.querySelector("#readerByline"),
+  readerPageStatus: document.querySelector("#readerPageStatus"),
+  readerPanelStatus: document.querySelector("#readerPanelStatus"),
   viewModeBtn: document.querySelector("#viewModeBtn"),
   pageDrawerToggleBtn: document.querySelector("#pageDrawerToggleBtn"),
   fullscreenBtn: document.querySelector("#fullscreenBtn"),
@@ -27,10 +31,8 @@ const dom = {
   pageStage: document.querySelector("#pageStage"),
   pageImage: document.querySelector("#pageImage"),
   loadingOverlay: document.querySelector("#loadingOverlay"),
-  hintBubble: document.querySelector("#hintBubble"),
   pageScrubber: document.querySelector("#pageScrubber"),
-  pageCountLabel: document.querySelector("#pageCountLabel"),
-  pageCountPill: document.querySelector("#pageCountPill"),
+  pageBrowserCount: document.querySelector("#pageBrowserCount"),
   thumbnailDrawer: document.querySelector("#thumbnailDrawer"),
   thumbnailRail: document.querySelector("#thumbnailRail")
 };
@@ -70,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initialize() {
   dom.readerView.dataset.chrome = "visible";
-  dom.readerFooter.dataset.drawer = "closed";
+  dom.readerView.dataset.browser = "closed";
   state.library = await fetchJson(LIBRARY_PATH);
   renderLibrary();
   await syncToUrl();
@@ -95,6 +97,14 @@ function bindEvents() {
 
   dom.pageDrawerToggleBtn.addEventListener("click", () => {
     togglePageDrawer();
+  });
+
+  dom.pageBrowserCloseBtn.addEventListener("click", () => {
+    togglePageDrawer(false);
+  });
+
+  dom.pageBrowserBackdrop.addEventListener("click", () => {
+    togglePageDrawer(false);
   });
 
   dom.fullscreenBtn.addEventListener("click", async () => {
@@ -125,7 +135,7 @@ function bindEvents() {
   });
 
   document.addEventListener("fullscreenchange", () => {
-    dom.fullscreenBtn.textContent = document.fullscreenElement ? "Exit fullscreen" : "Fullscreen";
+    dom.fullscreenBtn.textContent = document.fullscreenElement ? "Exit" : "Full";
     revealChrome();
   });
 
@@ -133,8 +143,6 @@ function bindEvents() {
     if (dom.readerView.hidden) {
       return;
     }
-
-    revealChrome();
 
     switch (event.key) {
       case "ArrowRight":
@@ -253,7 +261,6 @@ function bindEvents() {
 
     if (moved && Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.2) {
       state.ui.suppressClickUntil = performance.now() + 350;
-      revealChrome();
       if (dx < 0) {
         await stepForward();
       } else {
@@ -419,8 +426,9 @@ function renderReaderShell() {
     .join(" | ");
 
   dom.pageScrubber.max = String(state.pages.length);
-  dom.pageCountLabel.textContent = `1 / ${state.pages.length}`;
-  dom.pageCountPill.textContent = `1 / ${state.pages.length}`;
+  dom.readerPageStatus.textContent = `Page 1 / ${state.pages.length}`;
+  dom.readerPanelStatus.textContent = "Guided view";
+  dom.pageBrowserCount.textContent = `Page 1 / ${state.pages.length}`;
 }
 
 function buildPages(manifest) {
@@ -461,7 +469,7 @@ function renderThumbnails() {
       <span>${page.number}</span>
     `;
     button.addEventListener("click", async () => {
-      revealChrome();
+      togglePageDrawer(false);
       await setPage(page.number, { historyMode: "replace", panelStrategy: "reset" });
     });
     fragment.appendChild(button);
@@ -511,7 +519,6 @@ async function setPage(
   updateViewModeButton();
   updateReaderStatus();
   updateNav();
-  updateHint();
   updateHistory(historyMode);
   markActiveThumbnail(shouldScrollThumb);
   scheduleChromeHide();
@@ -534,7 +541,6 @@ function resolvePanelIndex(strategy, panels, requestedIndex = 0) {
 }
 
 async function stepForward() {
-  revealChrome();
   if (getEffectiveMode() === "guided" && state.currentPanels.length) {
     if (state.currentPanelIndex < state.currentPanels.length - 1) {
       state.currentPanelIndex += 1;
@@ -553,7 +559,6 @@ async function stepForward() {
 }
 
 async function stepBackward() {
-  revealChrome();
   if (getEffectiveMode() === "guided" && state.currentPanels.length) {
     if (state.currentPanelIndex > 0) {
       state.currentPanelIndex -= 1;
@@ -586,40 +591,35 @@ function updateNav() {
 
 function updateReaderStatus() {
   const totalPages = state.pages.length || 1;
-  const pageText = `${state.currentPage} / ${totalPages}`;
+  const pageText = `Page ${state.currentPage} / ${totalPages}`;
   const guided = getEffectiveMode() === "guided" && state.currentPanels.length;
 
   if (guided) {
-    const panelText = `${state.currentPanelIndex + 1} / ${state.currentPanels.length}`;
-    dom.pageCountLabel.textContent = `${pageText} | ${panelText}`;
-    dom.pageCountPill.textContent = `${state.currentPage}/${totalPages} | ${state.currentPanelIndex + 1}/${state.currentPanels.length}`;
+    dom.readerPageStatus.textContent = pageText;
+    dom.readerPanelStatus.textContent = `Panel ${state.currentPanelIndex + 1} / ${state.currentPanels.length}`;
+    dom.pageBrowserCount.textContent = pageText;
     return;
   }
 
-  dom.pageCountLabel.textContent = pageText;
-  dom.pageCountPill.textContent = pageText;
+  dom.readerPageStatus.textContent = pageText;
+  dom.readerPanelStatus.textContent = state.currentPanels.length ? "Full page" : "Page only";
+  dom.pageBrowserCount.textContent = pageText;
 }
 
 function updateViewModeButton() {
   if (!state.currentPanels.length) {
-    dom.viewModeBtn.textContent = "Page only";
+    dom.viewModeBtn.textContent = "Page";
     dom.viewModeBtn.disabled = true;
     dom.viewModeBtn.setAttribute("aria-pressed", "false");
+    dom.viewModeBtn.setAttribute("aria-label", "Page view only");
     return;
   }
 
   dom.viewModeBtn.disabled = false;
   const guided = getEffectiveMode() === "guided";
-  dom.viewModeBtn.textContent = guided ? "Guided" : "Full page";
+  dom.viewModeBtn.textContent = guided ? "Guided" : "Page";
   dom.viewModeBtn.setAttribute("aria-pressed", String(guided));
-}
-
-function updateHint() {
-  if (getEffectiveMode() === "guided" && state.currentPanels.length) {
-    dom.hintBubble.textContent = "Tap left or right to move panel-to-panel. Tap middle for menu.";
-    return;
-  }
-  dom.hintBubble.textContent = "Tap left or right for pages. Tap middle for menu.";
+  dom.viewModeBtn.setAttribute("aria-label", guided ? "Switch to full page view" : "Switch to guided view");
 }
 
 function togglePreferredMode() {
@@ -674,6 +674,13 @@ function applyViewTransform() {
       const centerY = (y1 + y2) / 2;
       tx = stageWidth / 2 - centerX * scale;
       ty = stageHeight / 2 - centerY * scale;
+
+      const topInset = state.ui.chromeVisible ? 88 : 0;
+      const bottomInset = state.ui.chromeVisible ? 28 : 18;
+      if (windowHeight * scale < stageHeight - topInset - bottomInset) {
+        const topAlignedTy = topInset - y1 * scale;
+        ty = Math.min(ty, topAlignedTy);
+      }
     }
   }
 
@@ -817,13 +824,16 @@ function scheduleChromeHide(delay = UI_HIDE_DELAY_MS) {
 function togglePageDrawer(force) {
   const nextState = typeof force === "boolean" ? force : !state.ui.drawerOpen;
   state.ui.drawerOpen = nextState;
-  dom.readerFooter.dataset.drawer = nextState ? "open" : "closed";
+  dom.readerView.dataset.browser = nextState ? "open" : "closed";
+  dom.pageBrowser.hidden = !nextState;
+  dom.pageBrowser.setAttribute("aria-hidden", String(!nextState));
   dom.thumbnailDrawer.setAttribute("aria-hidden", String(!nextState));
   dom.pageDrawerToggleBtn.setAttribute("aria-expanded", String(nextState));
-  dom.pageDrawerToggleBtn.textContent = nextState ? "Hide pages" : "Pages";
+  dom.pageDrawerToggleBtn.classList.toggle("is-active", nextState);
   if (nextState) {
     setChromeVisible(true);
     clearTimeout(state.ui.hideTimer);
+    dom.pageBrowserCloseBtn.focus({ preventScroll: true });
     return;
   }
   scheduleChromeHide(900);
