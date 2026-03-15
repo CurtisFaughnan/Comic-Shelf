@@ -8,6 +8,7 @@ const DOUBLE_TAP_DELAY_MS = 280;
 const DOUBLE_TAP_DISTANCE_PX = 28;
 const PANEL_OVERRIDE_PREFIX = "faughnan-panels:";
 const MIN_EDITOR_PANEL_SIZE = 0.02;
+const EDITOR_RESIZE_HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
 const dom = {
   body: document.body,
@@ -86,6 +87,7 @@ const state = {
     selectedId: null,
     draft: null,
     pointerId: null,
+    interaction: null,
     imgBox: { left: 0, top: 0, width: 1, height: 1 }
   }
 };
@@ -1130,6 +1132,7 @@ function closePanelEditor({ restoreFocus = true } = {}) {
   state.editor.open = false;
   state.editor.pointerId = null;
   state.editor.draft = null;
+  state.editor.interaction = null;
   state.editor.requestId += 1;
   dom.readerView.dataset.editor = "closed";
   dom.panelEditor.hidden = true;
@@ -1161,6 +1164,7 @@ async function loadPanelEditorPage(pageNumber) {
   state.editor.pageNumber = page.number;
   state.editor.pointerId = null;
   state.editor.draft = null;
+  state.editor.interaction = null;
   state.editor.imgBox = { left: 0, top: 0, width: 1, height: 1 };
   state.editor.panels = clonePanels(panels);
   state.editor.selectedId = state.editor.panels[0] ? state.editor.panels[0].id : null;
@@ -1238,7 +1242,8 @@ function renderPanelEditorOverlay() {
   for (const [index, panel] of state.editor.panels.entries()) {
     const box = document.createElement("div");
     box.className = "panel-editor-box";
-    if (panel.id === state.editor.selectedId) {
+    const isSelected = panel.id === state.editor.selectedId;
+    if (isSelected) {
       box.classList.add("is-selected");
     }
     box.dataset.panelId = panel.id;
@@ -1248,9 +1253,22 @@ function renderPanelEditorOverlay() {
     box.style.height = `${panel.h * 100}%`;
 
     const label = document.createElement("span");
-    label.className = "panel-editor-box-label";
+    label.className = "panel-editor-box-label panel-editor-move-handle";
+    label.dataset.panelId = panel.id;
     label.textContent = String(index + 1);
+    label.title = "Drag to move this frame";
     box.appendChild(label);
+
+    if (isSelected) {
+      for (const handleName of EDITOR_RESIZE_HANDLES) {
+        const handle = document.createElement("span");
+        handle.className = `panel-editor-handle panel-editor-handle-${handleName}`;
+        handle.dataset.panelId = panel.id;
+        handle.dataset.handle = handleName;
+        handle.setAttribute("aria-hidden", "true");
+        box.appendChild(handle);
+      }
+    }
 
     fragment.appendChild(box);
   }
@@ -1464,6 +1482,137 @@ function getCurrentEditorJson() {
   return JSON.stringify(serializePanels(state.editor.panels), null, 2);
 }
 
+function beginPanelEditorInteraction(event, { mode, panelId = null, point, handle = null }) {
+  state.editor.pointerId = event.pointerId;
+  state.editor.interaction = {
+    mode,
+    panelId,
+    handle,
+    startPoint: point ? { x: point.x, y: point.y } : null,
+    originPanel: panelId ? clonePanel(findEditorPanelById(panelId)) : null,
+    changed: false
+  };
+
+  if (mode === "draw" && point) {
+    state.editor.draft = {
+      startX: point.x,
+      startY: point.y,
+      currentX: point.x,
+      currentY: point.y
+    };
+    updatePanelEditorDraft();
+  } else {
+    state.editor.draft = null;
+    dom.panelEditorDraft.hidden = true;
+  }
+
+  if (dom.panelEditorStage.setPointerCapture) {
+    dom.panelEditorStage.setPointerCapture(event.pointerId);
+  }
+}
+
+function updatePanelEditorInteraction(point) {
+  const interaction = state.editor.interaction;
+  if (!interaction) {
+    return;
+  }
+
+  if (interaction.mode === "draw") {
+    state.editor.draft.currentX = point.x;
+    state.editor.draft.currentY = point.y;
+    updatePanelEditorDraft();
+    return;
+  }
+
+  const nextPanel = getEditorInteractionPanel(interaction, point);
+  if (!nextPanel) {
+    return;
+  }
+
+  interaction.changed = interaction.changed || !panelsMatch(interaction.originPanel, nextPanel);
+  replaceEditorPanel(interaction.panelId, nextPanel);
+}
+
+function getEditorInteractionPanel(interaction, point) {
+  const origin = interaction.originPanel;
+  const startPoint = interaction.startPoint;
+  if (!origin || !startPoint) {
+    return null;
+  }
+
+  if (interaction.mode === "move") {
+    const dx = point.x - startPoint.x;
+    const dy = point.y - startPoint.y;
+    return {
+      ...origin,
+      x: clamp(origin.x + dx, 0, 1 - origin.w),
+      y: clamp(origin.y + dy, 0, 1 - origin.h)
+    };
+  }
+
+  if (interaction.mode === "resize") {
+    return resizePanelFromHandle(origin, interaction.handle, point.x - startPoint.x, point.y - startPoint.y);
+  }
+
+  return null;
+}
+
+function resizePanelFromHandle(panel, handle, dx, dy) {
+  const left = panel.x;
+  const top = panel.y;
+  const right = panel.x + panel.w;
+  const bottom = panel.y + panel.h;
+
+  let nextLeft = left;
+  let nextTop = top;
+  let nextRight = right;
+  let nextBottom = bottom;
+
+  if (handle.includes("w")) {
+    nextLeft = clamp(left + dx, 0, right - MIN_EDITOR_PANEL_SIZE);
+  }
+  if (handle.includes("e")) {
+    nextRight = clamp(right + dx, left + MIN_EDITOR_PANEL_SIZE, 1);
+  }
+  if (handle.includes("n")) {
+    nextTop = clamp(top + dy, 0, bottom - MIN_EDITOR_PANEL_SIZE);
+  }
+  if (handle.includes("s")) {
+    nextBottom = clamp(bottom + dy, top + MIN_EDITOR_PANEL_SIZE, 1);
+  }
+
+  return {
+    ...panel,
+    x: nextLeft,
+    y: nextTop,
+    w: nextRight - nextLeft,
+    h: nextBottom - nextTop
+  };
+}
+
+function replaceEditorPanel(panelId, nextPanel) {
+  state.editor.panels = state.editor.panels.map((panel) => (
+    panel.id === panelId
+      ? {
+          ...panel,
+          x: clamp(nextPanel.x, 0, 1),
+          y: clamp(nextPanel.y, 0, 1),
+          w: clamp(nextPanel.w, MIN_EDITOR_PANEL_SIZE, 1),
+          h: clamp(nextPanel.h, MIN_EDITOR_PANEL_SIZE, 1)
+        }
+      : panel
+  ));
+
+  renderPanelEditorOverlay();
+}
+
+function revertEditorInteraction(interaction) {
+  if (!interaction.originPanel || !interaction.panelId) {
+    return;
+  }
+  replaceEditorPanel(interaction.panelId, interaction.originPanel);
+}
+
 function handlePanelEditorPointerDown(event) {
   if (!state.editor.open) {
     return;
@@ -1472,9 +1621,52 @@ function handlePanelEditorPointerDown(event) {
     return;
   }
 
+  event.preventDefault();
+
   const boxTarget = event.target.closest(".panel-editor-box");
+  const moveHandleTarget = event.target.closest(".panel-editor-move-handle");
+  const handleTarget = event.target.closest(".panel-editor-handle");
+
+  if (moveHandleTarget) {
+    const panelId = moveHandleTarget.dataset.panelId || (boxTarget ? boxTarget.dataset.panelId : "");
+    const point = getEditorPoint(event, { clampToImage: true });
+    if (!panelId || !point) {
+      return;
+    }
+
+    state.editor.selectedId = panelId;
+    beginPanelEditorInteraction(event, {
+      mode: "move",
+      panelId,
+      point
+    });
+    return;
+  }
+
+  if (handleTarget) {
+    const panelId = handleTarget.dataset.panelId || (boxTarget ? boxTarget.dataset.panelId : "");
+    const point = getEditorPoint(event, { clampToImage: true });
+    if (!panelId || !point) {
+      return;
+    }
+
+    state.editor.selectedId = panelId;
+    beginPanelEditorInteraction(event, {
+      mode: "resize",
+      panelId,
+      point,
+      handle: handleTarget.dataset.handle || "se"
+    });
+    return;
+  }
+
   if (boxTarget && !event.shiftKey) {
-    state.editor.selectedId = boxTarget.dataset.panelId;
+    const panelId = boxTarget.dataset.panelId;
+    if (!panelId) {
+      return;
+    }
+
+    state.editor.selectedId = panelId;
     renderPanelEditorOverlay();
     renderPanelEditorList();
     return;
@@ -1493,22 +1685,14 @@ function handlePanelEditorPointerDown(event) {
     return;
   }
 
-  state.editor.pointerId = event.pointerId;
-  state.editor.draft = {
-    startX: point.x,
-    startY: point.y,
-    currentX: point.x,
-    currentY: point.y
-  };
-  updatePanelEditorDraft();
-
-  if (dom.panelEditorStage.setPointerCapture) {
-    dom.panelEditorStage.setPointerCapture(event.pointerId);
-  }
+  beginPanelEditorInteraction(event, {
+    mode: "draw",
+    point
+  });
 }
 
 function handlePanelEditorPointerMove(event) {
-  if (!state.editor.open || state.editor.pointerId !== event.pointerId || !state.editor.draft) {
+  if (!state.editor.open || state.editor.pointerId !== event.pointerId || !state.editor.interaction) {
     return;
   }
 
@@ -1518,9 +1702,7 @@ function handlePanelEditorPointerMove(event) {
     return;
   }
 
-  state.editor.draft.currentX = point.x;
-  state.editor.draft.currentY = point.y;
-  updatePanelEditorDraft();
+  updatePanelEditorInteraction(point);
 }
 
 function handlePanelEditorPointerUp(event) {
@@ -1529,9 +1711,8 @@ function handlePanelEditorPointerUp(event) {
   }
 
   const point = getEditorPoint(event, { clampToImage: true });
-  if (point && state.editor.draft) {
-    state.editor.draft.currentX = point.x;
-    state.editor.draft.currentY = point.y;
+  if (point && state.editor.interaction) {
+    updatePanelEditorInteraction(point);
   }
 
   finishPanelEditorPointer(event.pointerId, true);
@@ -1554,30 +1735,56 @@ function finishPanelEditorPointer(pointerId, commitDraft) {
     }
   }
 
+  const interaction = state.editor.interaction;
   const draft = state.editor.draft;
   state.editor.pointerId = null;
+  state.editor.interaction = null;
   state.editor.draft = null;
   dom.panelEditorDraft.hidden = true;
 
-  if (!commitDraft || !draft) {
+  if (!interaction) {
     return;
   }
 
-  const rect = normalizeDraftRect(draft);
-  if (!rect || rect.w < MIN_EDITOR_PANEL_SIZE || rect.h < MIN_EDITOR_PANEL_SIZE) {
+  if (interaction.mode === "draw") {
+    if (!commitDraft || !draft) {
+      return;
+    }
+
+    const rect = normalizeDraftRect(draft);
+    if (!rect || rect.w < MIN_EDITOR_PANEL_SIZE || rect.h < MIN_EDITOR_PANEL_SIZE) {
+      renderPanelEditor();
+      return;
+    }
+
+    const panel = {
+      id: createPanelId(),
+      x: rect.x,
+      y: rect.y,
+      w: rect.w,
+      h: rect.h
+    };
+
+    setEditorPanels([...state.editor.panels, panel], {
+      selectedId: panel.id,
+      persist: true
+    });
     return;
   }
 
-  const panel = {
-    id: createPanelId(),
-    x: rect.x,
-    y: rect.y,
-    w: rect.w,
-    h: rect.h
-  };
+  if (!commitDraft) {
+    revertEditorInteraction(interaction);
+    renderPanelEditor();
+    return;
+  }
 
-  setEditorPanels([...state.editor.panels, panel], {
-    selectedId: panel.id,
+  if (!interaction.changed) {
+    renderPanelEditor();
+    return;
+  }
+
+  setEditorPanels(state.editor.panels, {
+    selectedId: interaction.panelId,
     persist: true
   });
 }
@@ -1606,6 +1813,20 @@ function getEditorPoint(event, { clampToImage = false } = {}) {
   };
 }
 
+function clonePanel(panel) {
+  if (!panel) {
+    return null;
+  }
+
+  return {
+    id: panel.id,
+    x: panel.x,
+    y: panel.y,
+    w: panel.w,
+    h: panel.h
+  };
+}
+
 function normalizeDraftRect(draft) {
   const x = clamp(Math.min(draft.startX, draft.currentX), 0, 1);
   const y = clamp(Math.min(draft.startY, draft.currentY), 0, 1);
@@ -1631,8 +1852,25 @@ function findEditorPanelAtPoint(x, y) {
   return null;
 }
 
+function findEditorPanelById(panelId) {
+  return state.editor.panels.find((panel) => panel.id === panelId) || null;
+}
+
 function isPointInPanel(x, y, panel) {
   return x >= panel.x && x <= panel.x + panel.w && y >= panel.y && y <= panel.y + panel.h;
+}
+
+function panelsMatch(panelA, panelB, epsilon = 0.0001) {
+  if (!panelA || !panelB) {
+    return false;
+  }
+
+  return (
+    Math.abs(panelA.x - panelB.x) <= epsilon &&
+    Math.abs(panelA.y - panelB.y) <= epsilon &&
+    Math.abs(panelA.w - panelB.w) <= epsilon &&
+    Math.abs(panelA.h - panelB.h) <= epsilon
+  );
 }
 
 function createPanelId() {

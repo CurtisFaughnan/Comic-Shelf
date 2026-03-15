@@ -779,21 +779,26 @@ button {
 }
 
 .panel-editor-box,
-.panel-editor-draft {
+.panel-editor-draft,
+.panel-editor-handle {
   position: absolute;
-  border-radius: 12px;
 }
 
 .panel-editor-box {
+  border-radius: 12px;
   border: 2px solid rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.04);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
-  cursor: pointer;
+  cursor: move;
+  touch-action: none;
 }
 
 .panel-editor-box.is-selected {
   border-color: rgba(255, 139, 115, 0.96);
   background: rgba(242, 84, 91, 0.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.22),
+    0 0 0 1px rgba(255, 139, 115, 0.3);
 }
 
 .panel-editor-box-label {
@@ -812,11 +817,77 @@ button {
   color: var(--ink);
   font-size: 0.76rem;
   font-weight: 700;
+  user-select: none;
+  cursor: move;
 }
 
 .panel-editor-draft {
+  border-radius: 12px;
   border: 2px dashed rgba(255, 255, 255, 0.8);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.panel-editor-handle {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(8, 7, 22, 0.92);
+  background: rgba(255, 139, 115, 0.98);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.panel-editor-handle-nw,
+.panel-editor-handle-n,
+.panel-editor-handle-ne {
+  top: -9px;
+}
+
+.panel-editor-handle-sw,
+.panel-editor-handle-s,
+.panel-editor-handle-se {
+  bottom: -9px;
+}
+
+.panel-editor-handle-nw,
+.panel-editor-handle-w,
+.panel-editor-handle-sw {
+  left: -9px;
+}
+
+.panel-editor-handle-ne,
+.panel-editor-handle-e,
+.panel-editor-handle-se {
+  right: -9px;
+}
+
+.panel-editor-handle-n,
+.panel-editor-handle-s {
+  left: calc(50% - 8px);
+}
+
+.panel-editor-handle-e,
+.panel-editor-handle-w {
+  top: calc(50% - 8px);
+}
+
+.panel-editor-handle-nw,
+.panel-editor-handle-se {
+  cursor: nwse-resize;
+}
+
+.panel-editor-handle-ne,
+.panel-editor-handle-sw {
+  cursor: nesw-resize;
+}
+
+.panel-editor-handle-n,
+.panel-editor-handle-s {
+  cursor: ns-resize;
+}
+
+.panel-editor-handle-e,
+.panel-editor-handle-w {
+  cursor: ew-resize;
 }
 
 .panel-editor-tip {
