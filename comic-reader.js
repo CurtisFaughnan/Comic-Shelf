@@ -4,6 +4,10 @@ const UI_HIDE_DELAY_MS = 1600;
 const PANEL_PADDING_PX = 34;
 const MAX_GUIDED_ZOOM = 10;
 const SWIPE_THRESHOLD = 70;
+const DOUBLE_TAP_DELAY_MS = 280;
+const DOUBLE_TAP_DISTANCE_PX = 28;
+const PANEL_OVERRIDE_PREFIX = "faughnan-panels:";
+const MIN_EDITOR_PANEL_SIZE = 0.02;
 
 const dom = {
   body: document.body,
@@ -16,6 +20,24 @@ const dom = {
   pageBrowser: document.querySelector("#pageBrowser"),
   pageBrowserBackdrop: document.querySelector("#pageBrowserBackdrop"),
   pageBrowserCloseBtn: document.querySelector("#pageBrowserCloseBtn"),
+  openEditorBtn: document.querySelector("#openEditorBtn"),
+  panelEditor: document.querySelector("#panelEditor"),
+  panelEditorBackdrop: document.querySelector("#panelEditorBackdrop"),
+  panelEditorTitle: document.querySelector("#panelEditorTitle"),
+  panelEditorMeta: document.querySelector("#panelEditorMeta"),
+  panelEditorPrevBtn: document.querySelector("#panelEditorPrevBtn"),
+  panelEditorNextBtn: document.querySelector("#panelEditorNextBtn"),
+  panelEditorResetBtn: document.querySelector("#panelEditorResetBtn"),
+  panelEditorClearBtn: document.querySelector("#panelEditorClearBtn"),
+  panelEditorCopyBtn: document.querySelector("#panelEditorCopyBtn"),
+  panelEditorDownloadBtn: document.querySelector("#panelEditorDownloadBtn"),
+  panelEditorCloseBtn: document.querySelector("#panelEditorCloseBtn"),
+  panelEditorStage: document.querySelector("#panelEditorStage"),
+  panelEditorImage: document.querySelector("#panelEditorImage"),
+  panelEditorOverlay: document.querySelector("#panelEditorOverlay"),
+  panelEditorDraft: document.querySelector("#panelEditorDraft"),
+  panelEditorCount: document.querySelector("#panelEditorCount"),
+  panelEditorList: document.querySelector("#panelEditorList"),
   bookGrid: document.querySelector("#bookGrid"),
   openFirstBookBtn: document.querySelector("#openFirstBookBtn"),
   backToShelfBtn: document.querySelector("#backToShelfBtn"),
@@ -53,7 +75,18 @@ const state = {
     drawerOpen: false,
     hideTimer: null,
     suppressClickUntil: 0,
-    gesture: null
+    gesture: null,
+    centerTap: null
+  },
+  editor: {
+    open: false,
+    pageNumber: 1,
+    requestId: 0,
+    panels: [],
+    selectedId: null,
+    draft: null,
+    pointerId: null,
+    imgBox: { left: 0, top: 0, width: 1, height: 1 }
   }
 };
 
@@ -73,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initialize() {
   dom.readerView.dataset.chrome = "visible";
   dom.readerView.dataset.browser = "closed";
+  dom.readerView.dataset.editor = "closed";
   state.library = await fetchJson(LIBRARY_PATH);
   renderLibrary();
   await syncToUrl();
@@ -105,6 +139,42 @@ function bindEvents() {
 
   dom.pageBrowserBackdrop.addEventListener("click", () => {
     togglePageDrawer(false);
+  });
+
+  dom.openEditorBtn.addEventListener("click", async () => {
+    await openPanelEditor(state.currentPage);
+  });
+
+  dom.panelEditorCloseBtn.addEventListener("click", () => {
+    closePanelEditor();
+  });
+
+  dom.panelEditorBackdrop.addEventListener("click", () => {
+    closePanelEditor();
+  });
+
+  dom.panelEditorPrevBtn.addEventListener("click", async () => {
+    await loadPanelEditorPage(state.editor.pageNumber - 1);
+  });
+
+  dom.panelEditorNextBtn.addEventListener("click", async () => {
+    await loadPanelEditorPage(state.editor.pageNumber + 1);
+  });
+
+  dom.panelEditorResetBtn.addEventListener("click", async () => {
+    await resetPanelEditorPage();
+  });
+
+  dom.panelEditorClearBtn.addEventListener("click", () => {
+    clearPanelEditorPage();
+  });
+
+  dom.panelEditorCopyBtn.addEventListener("click", async () => {
+    await copyCurrentEditorJson();
+  });
+
+  dom.panelEditorDownloadBtn.addEventListener("click", () => {
+    downloadCurrentEditorJson();
   });
 
   dom.fullscreenBtn.addEventListener("click", async () => {
@@ -141,6 +211,33 @@ function bindEvents() {
 
   document.addEventListener("keydown", async (event) => {
     if (dom.readerView.hidden) {
+      return;
+    }
+
+    if (state.editor.open) {
+      switch (event.key) {
+        case "Escape":
+          event.preventDefault();
+          closePanelEditor();
+          break;
+        case "ArrowLeft":
+          event.preventDefault();
+          await loadPanelEditorPage(state.editor.pageNumber - 1);
+          break;
+        case "ArrowRight":
+          event.preventDefault();
+          await loadPanelEditorPage(state.editor.pageNumber + 1);
+          break;
+        case "Delete":
+        case "Backspace":
+          if (state.editor.selectedId) {
+            event.preventDefault();
+            removeEditorPanel(state.editor.selectedId);
+          }
+          break;
+        default:
+          break;
+      }
       return;
     }
 
@@ -182,6 +279,11 @@ function bindEvents() {
         event.preventDefault();
         togglePreferredMode();
         break;
+      case "e":
+      case "E":
+        event.preventDefault();
+        await openPanelEditor(state.currentPage);
+        break;
       default:
         break;
     }
@@ -195,6 +297,13 @@ function bindEvents() {
     preloadNearbyPanels();
   });
 
+  dom.panelEditorImage.addEventListener("load", () => {
+    if (!state.editor.open) {
+      return;
+    }
+    renderPanelEditor();
+  });
+
   dom.pageStage.addEventListener("click", (event) => {
     if (performance.now() < state.ui.suppressClickUntil) {
       return;
@@ -206,7 +315,12 @@ function bindEvents() {
       togglePageDrawer(false);
       return;
     }
-    toggleChrome();
+
+    if (getStageZoneFromClientX(event.clientX) !== "center") {
+      return;
+    }
+
+    handleCenterStageTap(event);
   });
 
   dom.pageStage.addEventListener("pointerdown", (event) => {
@@ -279,12 +393,31 @@ function bindEvents() {
 
   window.addEventListener("resize", () => {
     applyViewTransform();
+    if (state.editor.open) {
+      renderPanelEditor();
+    }
   });
 
   window.addEventListener("popstate", () => {
     syncToUrl().catch((error) => {
       console.error(error);
     });
+  });
+
+  dom.panelEditorStage.addEventListener("pointerdown", (event) => {
+    handlePanelEditorPointerDown(event);
+  });
+
+  dom.panelEditorStage.addEventListener("pointermove", (event) => {
+    handlePanelEditorPointerMove(event);
+  });
+
+  dom.panelEditorStage.addEventListener("pointerup", (event) => {
+    handlePanelEditorPointerUp(event);
+  });
+
+  dom.panelEditorStage.addEventListener("pointercancel", (event) => {
+    cancelPanelEditorPointer(event);
   });
 }
 
@@ -388,6 +521,7 @@ async function openBook(slug, { page = 1, panel = 0, mode = null, historyMode = 
 }
 
 function closeBook({ historyMode = "replace" } = {}) {
+  closePanelEditor({ restoreFocus: false });
   state.currentBook = null;
   state.currentManifest = null;
   state.pages = [];
@@ -412,6 +546,7 @@ function showReader() {
   dom.readerView.hidden = false;
   dom.pageStage.focus();
   togglePageDrawer(false);
+  closePanelEditor({ restoreFocus: false });
   revealChrome({ immediate: true });
 }
 
@@ -622,7 +757,7 @@ function updateViewModeButton() {
   dom.viewModeBtn.setAttribute("aria-label", guided ? "Switch to full page view" : "Switch to guided view");
 }
 
-function togglePreferredMode() {
+function togglePreferredMode({ reveal = true } = {}) {
   if (!state.currentPanels.length) {
     return;
   }
@@ -633,7 +768,11 @@ function togglePreferredMode() {
   applyViewTransform();
   updateNav();
   updateHistory("replace");
-  revealChrome({ immediate: true });
+  if (reveal) {
+    revealChrome({ immediate: true });
+  } else {
+    scheduleChromeHide(900);
+  }
 }
 
 function getEffectiveMode() {
@@ -688,12 +827,19 @@ function applyViewTransform() {
 }
 
 async function loadPanelsForPage(page) {
-  if (page.panels) {
-    return page.panels;
+  const stored = readStoredPanels(page);
+  if (stored.found) {
+    state.panelCache.set(page.number, stored.panels);
+    return stored.panels;
   }
 
   if (state.panelCache.has(page.number)) {
     return state.panelCache.get(page.number);
+  }
+
+  if (page.panels) {
+    state.panelCache.set(page.number, page.panels);
+    return page.panels;
   }
 
   if (!page.panelPath) {
@@ -785,6 +931,7 @@ function clearUiTimers() {
   clearTimeout(state.ui.hideTimer);
   state.ui.suppressClickUntil = 0;
   state.ui.gesture = null;
+  clearPendingCenterTap();
 }
 
 function setChromeVisible(visible) {
@@ -825,6 +972,7 @@ function togglePageDrawer(force) {
   const nextState = typeof force === "boolean" ? force : !state.ui.drawerOpen;
   state.ui.drawerOpen = nextState;
   dom.readerView.dataset.browser = nextState ? "open" : "closed";
+  clearPendingCenterTap();
   dom.pageBrowser.hidden = !nextState;
   dom.pageBrowser.setAttribute("aria-hidden", String(!nextState));
   dom.thumbnailDrawer.setAttribute("aria-hidden", String(!nextState));
@@ -866,6 +1014,723 @@ function preloadNearbyPanels() {
     }
     void loadPanelsForPage(page);
   }
+}
+
+function clonePanels(panels) {
+  return (panels || []).map((panel) => ({
+    id: panel.id || createPanelId(),
+    x: Number(panel.x),
+    y: Number(panel.y),
+    w: Number(panel.w),
+    h: Number(panel.h)
+  }));
+}
+
+function serializePanels(panels) {
+  return (panels || []).map((panel) => ({
+    x: roundPanelValue(panel.x),
+    y: roundPanelValue(panel.y),
+    w: roundPanelValue(panel.w),
+    h: roundPanelValue(panel.h)
+  }));
+}
+
+function roundPanelValue(value) {
+  return Math.round(Number(value) * 10000) / 10000;
+}
+
+function getPageByNumber(pageNumber) {
+  if (!state.pages.length) {
+    return null;
+  }
+  const normalizedPage = clamp(Math.round(pageNumber), 1, state.pages.length);
+  return state.pages[normalizedPage - 1] || null;
+}
+
+function getPanelStorageKey(page) {
+  const slug = state.currentBook ? state.currentBook.slug : "comic";
+  return `${PANEL_OVERRIDE_PREFIX}${slug}:${page.panelId || page.number}`;
+}
+
+function readStoredPanels(page) {
+  if (!page) {
+    return { found: false, panels: [] };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getPanelStorageKey(page));
+    if (raw === null) {
+      return { found: false, panels: [] };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      found: true,
+      panels: normalizePanels(Array.isArray(parsed) ? parsed : [])
+    };
+  } catch (error) {
+    console.debug("Stored panel override could not be read.", error);
+    return { found: false, panels: [] };
+  }
+}
+
+function writeStoredPanels(page, panels) {
+  if (!page) {
+    return [];
+  }
+
+  const normalized = normalizePanels(clonePanels(panels));
+
+  try {
+    window.localStorage.setItem(
+      getPanelStorageKey(page),
+      JSON.stringify(serializePanels(normalized), null, 2)
+    );
+  } catch (error) {
+    console.debug("Stored panel override could not be saved.", error);
+  }
+
+  state.panelCache.set(page.number, normalized);
+  return normalized;
+}
+
+function clearStoredPanels(page) {
+  if (!page) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(getPanelStorageKey(page));
+  } catch (error) {
+    console.debug("Stored panel override could not be removed.", error);
+  }
+
+  state.panelCache.delete(page.number);
+}
+
+async function openPanelEditor(pageNumber = state.currentPage) {
+  if (!state.currentBook || !state.pages.length) {
+    return;
+  }
+
+  togglePageDrawer(false);
+  clearPendingCenterTap();
+  clearTimeout(state.ui.hideTimer);
+  setChromeVisible(true);
+
+  state.editor.open = true;
+  dom.readerView.dataset.editor = "open";
+  dom.panelEditor.hidden = false;
+  dom.panelEditor.setAttribute("aria-hidden", "false");
+
+  await loadPanelEditorPage(pageNumber);
+  dom.panelEditorCloseBtn.focus({ preventScroll: true });
+}
+
+function closePanelEditor({ restoreFocus = true } = {}) {
+  state.editor.open = false;
+  state.editor.pointerId = null;
+  state.editor.draft = null;
+  state.editor.requestId += 1;
+  dom.readerView.dataset.editor = "closed";
+  dom.panelEditor.hidden = true;
+  dom.panelEditor.setAttribute("aria-hidden", "true");
+  dom.panelEditorDraft.hidden = true;
+
+  if (restoreFocus && !dom.readerView.hidden) {
+    dom.pageStage.focus({ preventScroll: true });
+    scheduleChromeHide(900);
+  }
+}
+
+async function loadPanelEditorPage(pageNumber) {
+  if (!state.editor.open) {
+    return;
+  }
+
+  const page = getPageByNumber(pageNumber);
+  if (!page) {
+    return;
+  }
+
+  const requestId = ++state.editor.requestId;
+  const panels = await loadPanelsForPage(page);
+  if (!state.editor.open || requestId !== state.editor.requestId) {
+    return;
+  }
+
+  state.editor.pageNumber = page.number;
+  state.editor.pointerId = null;
+  state.editor.draft = null;
+  state.editor.imgBox = { left: 0, top: 0, width: 1, height: 1 };
+  state.editor.panels = clonePanels(panels);
+  state.editor.selectedId = state.editor.panels[0] ? state.editor.panels[0].id : null;
+
+  dom.panelEditorImage.alt = `${state.currentManifest.title} page ${page.number}`;
+  dom.panelEditorImage.dataset.page = String(page.number);
+  dom.panelEditorImage.src = page.image;
+
+  renderPanelEditor();
+}
+
+function renderPanelEditor() {
+  if (!state.editor.open) {
+    return;
+  }
+
+  const page = getPageByNumber(state.editor.pageNumber);
+  if (!page) {
+    return;
+  }
+
+  const override = readStoredPanels(page);
+  const publishedExists = Boolean(page.panels || page.panelPath);
+  const sourceText = override.found
+    ? "Local browser override is active for this page."
+    : publishedExists
+      ? "Using the published guided-view frames for this page."
+      : "This page has no published guided-view frames yet.";
+
+  dom.panelEditorTitle.textContent = `Edit page ${page.number}`;
+  dom.panelEditorMeta.textContent = `${sourceText} Changes save in this browser until you export the JSON.`;
+  dom.panelEditorPrevBtn.disabled = page.number <= 1;
+  dom.panelEditorNextBtn.disabled = page.number >= state.pages.length;
+  dom.panelEditorCount.textContent = `${state.editor.panels.length} ${state.editor.panels.length === 1 ? "panel" : "panels"}`;
+
+  updatePanelEditorImageBox();
+  renderPanelEditorOverlay();
+  renderPanelEditorList();
+  updatePanelEditorDraft();
+}
+
+function updatePanelEditorImageBox() {
+  const stageWidth = dom.panelEditorStage.clientWidth;
+  const stageHeight = dom.panelEditorStage.clientHeight;
+  const imageWidth = dom.panelEditorImage.naturalWidth || DEFAULT_IMAGE_SIZE.width;
+  const imageHeight = dom.panelEditorImage.naturalHeight || DEFAULT_IMAGE_SIZE.height;
+
+  if (!stageWidth || !stageHeight) {
+    return;
+  }
+
+  const scale = Math.min(stageWidth / imageWidth, stageHeight / imageHeight);
+  const width = imageWidth * scale;
+  const height = imageHeight * scale;
+  const left = (stageWidth - width) / 2;
+  const top = (stageHeight - height) / 2;
+
+  state.editor.imgBox = { left, top, width, height };
+
+  dom.panelEditorImage.style.left = `${left}px`;
+  dom.panelEditorImage.style.top = `${top}px`;
+  dom.panelEditorImage.style.width = `${width}px`;
+  dom.panelEditorImage.style.height = `${height}px`;
+
+  dom.panelEditorOverlay.style.left = `${left}px`;
+  dom.panelEditorOverlay.style.top = `${top}px`;
+  dom.panelEditorOverlay.style.width = `${width}px`;
+  dom.panelEditorOverlay.style.height = `${height}px`;
+}
+
+function renderPanelEditorOverlay() {
+  dom.panelEditorOverlay.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+  for (const [index, panel] of state.editor.panels.entries()) {
+    const box = document.createElement("div");
+    box.className = "panel-editor-box";
+    if (panel.id === state.editor.selectedId) {
+      box.classList.add("is-selected");
+    }
+    box.dataset.panelId = panel.id;
+    box.style.left = `${panel.x * 100}%`;
+    box.style.top = `${panel.y * 100}%`;
+    box.style.width = `${panel.w * 100}%`;
+    box.style.height = `${panel.h * 100}%`;
+
+    const label = document.createElement("span");
+    label.className = "panel-editor-box-label";
+    label.textContent = String(index + 1);
+    box.appendChild(label);
+
+    fragment.appendChild(box);
+  }
+
+  dom.panelEditorOverlay.appendChild(fragment);
+}
+
+function renderPanelEditorList() {
+  dom.panelEditorList.innerHTML = "";
+
+  if (!state.editor.panels.length) {
+    const empty = document.createElement("p");
+    empty.className = "panel-editor-empty";
+    empty.textContent = "No frames yet. Drag across the comic page to draw the first guided-view frame.";
+    dom.panelEditorList.appendChild(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  for (const [index, panel] of state.editor.panels.entries()) {
+    const item = document.createElement("article");
+    item.className = "panel-editor-item";
+    if (panel.id === state.editor.selectedId) {
+      item.classList.add("is-selected");
+    }
+
+    item.addEventListener("click", () => {
+      state.editor.selectedId = panel.id;
+      renderPanelEditorOverlay();
+      renderPanelEditorList();
+    });
+
+    const head = document.createElement("div");
+    head.className = "panel-editor-item-head";
+    head.innerHTML = `
+      <span class="panel-editor-item-title">Panel ${index + 1}</span>
+      <span class="panel-editor-item-meta">${Math.round(panel.w * 100)}% x ${Math.round(panel.h * 100)}%</span>
+    `;
+    item.appendChild(head);
+
+    const meta = document.createElement("div");
+    meta.className = "panel-editor-item-meta";
+    meta.textContent = `x ${Math.round(panel.x * 100)}%, y ${Math.round(panel.y * 100)}%, w ${Math.round(panel.w * 100)}%, h ${Math.round(panel.h * 100)}%`;
+    item.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "panel-editor-item-actions";
+
+    const upButton = document.createElement("button");
+    upButton.className = "reader-tool-button";
+    upButton.type = "button";
+    upButton.textContent = "Up";
+    upButton.disabled = index === 0;
+    upButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      moveEditorPanel(panel.id, -1);
+    });
+
+    const downButton = document.createElement("button");
+    downButton.className = "reader-tool-button";
+    downButton.type = "button";
+    downButton.textContent = "Down";
+    downButton.disabled = index === state.editor.panels.length - 1;
+    downButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      moveEditorPanel(panel.id, 1);
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "reader-nav-button";
+    deleteButton.type = "button";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removeEditorPanel(panel.id);
+    });
+
+    actions.append(upButton, downButton, deleteButton);
+    item.appendChild(actions);
+    fragment.appendChild(item);
+  }
+
+  dom.panelEditorList.appendChild(fragment);
+}
+
+function updatePanelEditorDraft() {
+  const draft = state.editor.draft;
+  if (!draft) {
+    dom.panelEditorDraft.hidden = true;
+    return;
+  }
+
+  const rect = normalizeDraftRect(draft);
+  if (!rect) {
+    dom.panelEditorDraft.hidden = true;
+    return;
+  }
+
+  const { left, top, width, height } = state.editor.imgBox;
+  dom.panelEditorDraft.hidden = false;
+  dom.panelEditorDraft.style.left = `${left + rect.x * width}px`;
+  dom.panelEditorDraft.style.top = `${top + rect.y * height}px`;
+  dom.panelEditorDraft.style.width = `${rect.w * width}px`;
+  dom.panelEditorDraft.style.height = `${rect.h * height}px`;
+}
+
+function setEditorPanels(panels, { selectedId = null, persist = true } = {}) {
+  const normalized = normalizePanels(clonePanels(panels));
+  state.editor.panels = normalized;
+
+  if (!selectedId || !normalized.some((panel) => panel.id === selectedId)) {
+    selectedId = normalized[normalized.length - 1] ? normalized[normalized.length - 1].id : null;
+  }
+  state.editor.selectedId = selectedId;
+
+  if (persist) {
+    const page = getPageByNumber(state.editor.pageNumber);
+    state.editor.panels = writeStoredPanels(page, normalized);
+    if (!state.editor.panels.some((panel) => panel.id === state.editor.selectedId)) {
+      state.editor.selectedId = state.editor.panels[0] ? state.editor.panels[0].id : null;
+    }
+    void syncReaderWithPanelOverride(page.number);
+  }
+
+  renderPanelEditor();
+}
+
+async function syncReaderWithPanelOverride(pageNumber) {
+  if (state.currentPage !== pageNumber) {
+    return;
+  }
+
+  const page = getPageByNumber(pageNumber);
+  if (!page) {
+    return;
+  }
+
+  const panels = await loadPanelsForPage(page);
+  if (state.currentPage !== pageNumber) {
+    return;
+  }
+
+  state.currentPanels = panels;
+  state.currentPanelIndex = panels.length ? clamp(state.currentPanelIndex, 0, panels.length - 1) : 0;
+  updateViewModeButton();
+  updateReaderStatus();
+  updateNav();
+  applyViewTransform();
+  updateHistory("replace");
+}
+
+async function resetPanelEditorPage() {
+  const page = getPageByNumber(state.editor.pageNumber);
+  if (!page) {
+    return;
+  }
+
+  clearStoredPanels(page);
+  await loadPanelEditorPage(page.number);
+  await syncReaderWithPanelOverride(page.number);
+}
+
+function clearPanelEditorPage() {
+  setEditorPanels([], { selectedId: null, persist: true });
+}
+
+function moveEditorPanel(panelId, direction) {
+  const index = state.editor.panels.findIndex((panel) => panel.id === panelId);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= state.editor.panels.length) {
+    return;
+  }
+
+  const nextPanels = clonePanels(state.editor.panels);
+  const [moved] = nextPanels.splice(index, 1);
+  nextPanels.splice(nextIndex, 0, moved);
+  setEditorPanels(nextPanels, { selectedId: panelId, persist: true });
+}
+
+function removeEditorPanel(panelId) {
+  const nextPanels = state.editor.panels.filter((panel) => panel.id !== panelId);
+  const removedIndex = state.editor.panels.findIndex((panel) => panel.id === panelId);
+  const nextSelected = nextPanels[removedIndex] || nextPanels[removedIndex - 1] || null;
+  setEditorPanels(nextPanels, {
+    selectedId: nextSelected ? nextSelected.id : null,
+    persist: true
+  });
+}
+
+async function copyCurrentEditorJson() {
+  const text = getCurrentEditorJson();
+  const originalLabel = dom.panelEditorCopyBtn.textContent;
+  const copied = await copyText(text);
+  dom.panelEditorCopyBtn.textContent = copied ? "Copied" : "Copy failed";
+  window.setTimeout(() => {
+    dom.panelEditorCopyBtn.textContent = originalLabel;
+  }, 1200);
+}
+
+function downloadCurrentEditorJson() {
+  const page = getPageByNumber(state.editor.pageNumber);
+  if (!page) {
+    return;
+  }
+
+  downloadJson(`${page.panelId || page.number}.json`, getCurrentEditorJson());
+}
+
+function getCurrentEditorJson() {
+  return JSON.stringify(serializePanels(state.editor.panels), null, 2);
+}
+
+function handlePanelEditorPointerDown(event) {
+  if (!state.editor.open) {
+    return;
+  }
+  if (event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  const boxTarget = event.target.closest(".panel-editor-box");
+  if (boxTarget && !event.shiftKey) {
+    state.editor.selectedId = boxTarget.dataset.panelId;
+    renderPanelEditorOverlay();
+    renderPanelEditorList();
+    return;
+  }
+
+  const point = getEditorPoint(event, { clampToImage: false });
+  if (!point) {
+    return;
+  }
+
+  const hitPanel = findEditorPanelAtPoint(point.x, point.y);
+  if (hitPanel && !event.shiftKey) {
+    state.editor.selectedId = hitPanel.id;
+    renderPanelEditorOverlay();
+    renderPanelEditorList();
+    return;
+  }
+
+  state.editor.pointerId = event.pointerId;
+  state.editor.draft = {
+    startX: point.x,
+    startY: point.y,
+    currentX: point.x,
+    currentY: point.y
+  };
+  updatePanelEditorDraft();
+
+  if (dom.panelEditorStage.setPointerCapture) {
+    dom.panelEditorStage.setPointerCapture(event.pointerId);
+  }
+}
+
+function handlePanelEditorPointerMove(event) {
+  if (!state.editor.open || state.editor.pointerId !== event.pointerId || !state.editor.draft) {
+    return;
+  }
+
+  event.preventDefault();
+  const point = getEditorPoint(event, { clampToImage: true });
+  if (!point) {
+    return;
+  }
+
+  state.editor.draft.currentX = point.x;
+  state.editor.draft.currentY = point.y;
+  updatePanelEditorDraft();
+}
+
+function handlePanelEditorPointerUp(event) {
+  if (!state.editor.open || state.editor.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const point = getEditorPoint(event, { clampToImage: true });
+  if (point && state.editor.draft) {
+    state.editor.draft.currentX = point.x;
+    state.editor.draft.currentY = point.y;
+  }
+
+  finishPanelEditorPointer(event.pointerId, true);
+}
+
+function cancelPanelEditorPointer(event) {
+  if (!state.editor.open || state.editor.pointerId !== event.pointerId) {
+    return;
+  }
+
+  finishPanelEditorPointer(event.pointerId, false);
+}
+
+function finishPanelEditorPointer(pointerId, commitDraft) {
+  if (dom.panelEditorStage.releasePointerCapture) {
+    try {
+      dom.panelEditorStage.releasePointerCapture(pointerId);
+    } catch (error) {
+      console.debug("Editor pointer release skipped.", error);
+    }
+  }
+
+  const draft = state.editor.draft;
+  state.editor.pointerId = null;
+  state.editor.draft = null;
+  dom.panelEditorDraft.hidden = true;
+
+  if (!commitDraft || !draft) {
+    return;
+  }
+
+  const rect = normalizeDraftRect(draft);
+  if (!rect || rect.w < MIN_EDITOR_PANEL_SIZE || rect.h < MIN_EDITOR_PANEL_SIZE) {
+    return;
+  }
+
+  const panel = {
+    id: createPanelId(),
+    x: rect.x,
+    y: rect.y,
+    w: rect.w,
+    h: rect.h
+  };
+
+  setEditorPanels([...state.editor.panels, panel], {
+    selectedId: panel.id,
+    persist: true
+  });
+}
+
+function getEditorPoint(event, { clampToImage = false } = {}) {
+  const stageRect = dom.panelEditorStage.getBoundingClientRect();
+  const { left, top, width, height } = state.editor.imgBox;
+  if (!width || !height) {
+    return null;
+  }
+
+  let x = event.clientX - stageRect.left;
+  let y = event.clientY - stageRect.top;
+
+  const insideImage = x >= left && x <= left + width && y >= top && y <= top + height;
+  if (!insideImage && !clampToImage) {
+    return null;
+  }
+
+  x = clamp(x, left, left + width);
+  y = clamp(y, top, top + height);
+
+  return {
+    x: clamp((x - left) / width, 0, 1),
+    y: clamp((y - top) / height, 0, 1)
+  };
+}
+
+function normalizeDraftRect(draft) {
+  const x = clamp(Math.min(draft.startX, draft.currentX), 0, 1);
+  const y = clamp(Math.min(draft.startY, draft.currentY), 0, 1);
+  const maxX = clamp(Math.max(draft.startX, draft.currentX), 0, 1);
+  const maxY = clamp(Math.max(draft.startY, draft.currentY), 0, 1);
+
+  return {
+    x,
+    y,
+    w: clamp(maxX - x, 0, 1),
+    h: clamp(maxY - y, 0, 1)
+  };
+}
+
+function findEditorPanelAtPoint(x, y) {
+  for (let index = state.editor.panels.length - 1; index >= 0; index -= 1) {
+    const panel = state.editor.panels[index];
+    if (isPointInPanel(x, y, panel)) {
+      return panel;
+    }
+  }
+
+  return null;
+}
+
+function isPointInPanel(x, y, panel) {
+  return x >= panel.x && x <= panel.x + panel.w && y >= panel.y && y <= panel.y + panel.h;
+}
+
+function createPanelId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `panel-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+}
+
+function clearPendingCenterTap() {
+  if (state.ui.centerTap && state.ui.centerTap.timerId) {
+    clearTimeout(state.ui.centerTap.timerId);
+  }
+  state.ui.centerTap = null;
+}
+
+function getStageZoneFromClientX(clientX) {
+  const stageRect = dom.pageStage.getBoundingClientRect();
+  const leftWidth = dom.prevPageBtn.getBoundingClientRect().width || stageRect.width * 0.24;
+  const rightWidth = dom.nextPageBtn.getBoundingClientRect().width || stageRect.width * 0.24;
+  const localX = clientX - stageRect.left;
+
+  if (localX <= leftWidth) {
+    return "left";
+  }
+  if (localX >= stageRect.width - rightWidth) {
+    return "right";
+  }
+  return "center";
+}
+
+function handleCenterStageTap(event) {
+  const now = performance.now();
+  const previousTap = state.ui.centerTap;
+
+  if (previousTap) {
+    const dx = event.clientX - previousTap.x;
+    const dy = event.clientY - previousTap.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance <= DOUBLE_TAP_DISTANCE_PX) {
+      clearPendingCenterTap();
+      togglePreferredMode({ reveal: false });
+      return;
+    }
+  }
+
+  clearPendingCenterTap();
+  state.ui.centerTap = {
+    x: event.clientX,
+    y: event.clientY,
+    at: now,
+    timerId: window.setTimeout(() => {
+      state.ui.centerTap = null;
+      toggleChrome();
+    }, DOUBLE_TAP_DELAY_MS)
+  };
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (error) {
+    console.debug("Clipboard API unavailable.", error);
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.debug("execCommand copy failed.", error);
+  }
+
+  textarea.remove();
+  return copied;
+}
+
+function downloadJson(filename, text) {
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function clamp(value, min, max) {

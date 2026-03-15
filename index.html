@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#110d2b" />
     <title>Faughnan Comics</title>
-    <link rel="stylesheet" href="./comic-reader.css?v=20260314a" />
+    <link rel="stylesheet" href="./comic-reader.css?v=20260315a" />
   </head>
   <body class="comic-body">
     <div class="backdrop-layer" aria-hidden="true"></div>
@@ -92,7 +92,10 @@
                     <h2 id="readerTitle">Loading...</h2>
                     <p id="readerByline" class="reader-byline"></p>
                   </div>
-                  <button id="pageBrowserCloseBtn" class="reader-nav-button" type="button">Close</button>
+                  <div class="page-browser-actions">
+                    <button id="openEditorBtn" class="reader-tool-button" type="button">Edit page</button>
+                    <button id="pageBrowserCloseBtn" class="reader-nav-button" type="button">Close</button>
+                  </div>
                 </div>
                 <div class="page-browser-controls">
                   <label class="scrubber-label" for="pageScrubber">Jump to page</label>
@@ -104,11 +107,62 @@
                 </div>
               </div>
             </aside>
+
+            <aside id="panelEditor" class="panel-editor" hidden aria-hidden="true">
+              <button
+                id="panelEditorBackdrop"
+                class="panel-editor-backdrop"
+                type="button"
+                tabindex="-1"
+                aria-label="Close guided view editor"
+              ></button>
+              <div class="panel-editor-shell" role="dialog" aria-modal="true" aria-labelledby="panelEditorTitle">
+                <div class="panel-editor-topbar">
+                  <div class="panel-editor-copy">
+                    <p class="section-kicker">Guided View Editor</p>
+                    <h2 id="panelEditorTitle">Edit page 1</h2>
+                    <p id="panelEditorMeta" class="reader-byline">
+                      Draw boxes in reading order. Changes save in this browser until you export the JSON.
+                    </p>
+                  </div>
+                  <div class="panel-editor-actions">
+                    <button id="panelEditorPrevBtn" class="reader-tool-button" type="button">Prev page</button>
+                    <button id="panelEditorNextBtn" class="reader-tool-button" type="button">Next page</button>
+                    <button id="panelEditorResetBtn" class="reader-tool-button" type="button">Reset</button>
+                    <button id="panelEditorClearBtn" class="reader-tool-button" type="button">Clear</button>
+                    <button id="panelEditorCopyBtn" class="reader-tool-button" type="button">Copy JSON</button>
+                    <button id="panelEditorDownloadBtn" class="reader-tool-button" type="button">Download JSON</button>
+                    <button id="panelEditorCloseBtn" class="reader-nav-button" type="button">Done</button>
+                  </div>
+                </div>
+
+                <div class="panel-editor-layout">
+                  <div class="panel-editor-canvas-wrap">
+                    <div id="panelEditorStage" class="panel-editor-stage">
+                      <img id="panelEditorImage" class="panel-editor-image" alt="" draggable="false" />
+                      <div id="panelEditorOverlay" class="panel-editor-overlay"></div>
+                      <div id="panelEditorDraft" class="panel-editor-draft" hidden></div>
+                    </div>
+                    <p class="panel-editor-tip">
+                      Drag on empty space to draw a frame. Tap a frame to select it. Use Shift while dragging if you want to draw over an existing frame.
+                    </p>
+                  </div>
+
+                  <aside class="panel-editor-sidebar">
+                    <div class="panel-editor-sidebar-head">
+                      <p class="section-kicker">Reading Order</p>
+                      <p id="panelEditorCount" class="panel-editor-count">0 panels</p>
+                    </div>
+                    <div id="panelEditorList" class="panel-editor-list"></div>
+                  </aside>
+                </div>
+              </div>
+            </aside>
           </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./comic-reader.js?v=20260314a"></script>
+    <script type="module" src="./comic-reader.js?v=20260315a"></script>
   </body>
 </html>
