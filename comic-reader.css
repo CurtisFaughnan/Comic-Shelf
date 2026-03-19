@@ -480,11 +480,35 @@ button {
   will-change: transform;
 }
 
+.guided-window {
+  position: absolute;
+  z-index: 4;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 0 0 2400px rgba(0, 0, 0, 0.98),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    left 380ms cubic-bezier(0.2, 1, 0.3, 1),
+    top 380ms cubic-bezier(0.2, 1, 0.3, 1),
+    width 380ms cubic-bezier(0.2, 1, 0.3, 1),
+    height 380ms cubic-bezier(0.2, 1, 0.3, 1),
+    opacity 180ms ease,
+    border-color 180ms ease;
+  will-change: left, top, width, height, opacity;
+}
+
+.guided-window.is-visible {
+  opacity: 1;
+}
+
 .nav-zone {
   position: absolute;
   top: 0;
   bottom: 0;
-  z-index: 4;
+  z-index: 5;
   width: 24%;
   border: none;
   background: transparent;
@@ -512,7 +536,7 @@ button {
   position: absolute;
   top: 18px;
   right: 18px;
-  z-index: 6;
+  z-index: 7;
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(8, 7, 22, 0.76);

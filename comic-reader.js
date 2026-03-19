@@ -53,6 +53,7 @@ const dom = {
   nextPageBtn: document.querySelector("#nextPageBtn"),
   pageStage: document.querySelector("#pageStage"),
   pageImage: document.querySelector("#pageImage"),
+  guidedWindow: document.querySelector("#guidedWindow"),
   loadingOverlay: document.querySelector("#loadingOverlay"),
   pageScrubber: document.querySelector("#pageScrubber"),
   pageBrowserCount: document.querySelector("#pageBrowserCount"),
@@ -646,6 +647,7 @@ async function setPage(
 
   if (dom.pageImage.dataset.page !== String(nextPage) || dom.pageImage.src !== new URL(page.image, window.location.href).href) {
     dom.loadingOverlay.hidden = false;
+    updateGuidedWindow(null);
     dom.pageImage.dataset.page = String(nextPage);
     dom.pageImage.src = page.image;
   } else {
@@ -791,12 +793,14 @@ function applyViewTransform() {
   const imageHeight = dom.pageImage.naturalHeight || DEFAULT_IMAGE_SIZE.height;
 
   if (!stageWidth || !stageHeight) {
+    updateGuidedWindow(null);
     return;
   }
 
   let scale = Math.min(stageWidth / imageWidth, stageHeight / imageHeight);
   let tx = (stageWidth - imageWidth * scale) / 2;
   let ty = (stageHeight - imageHeight * scale) / 2;
+  let guidedWindowRect = null;
 
   if (getEffectiveMode() === "guided" && state.currentPanels.length) {
     const panel = state.currentPanels[state.currentPanelIndex] || null;
@@ -822,10 +826,54 @@ function applyViewTransform() {
         const topAlignedTy = topInset - y1 * scale;
         ty = Math.min(ty, topAlignedTy);
       }
+
+      guidedWindowRect = projectGuidedWindow({
+        stageWidth,
+        stageHeight,
+        tx,
+        ty,
+        scale,
+        x1,
+        y1,
+        x2,
+        y2
+      });
     }
   }
 
   dom.pageImage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  updateGuidedWindow(guidedWindowRect);
+}
+
+function projectGuidedWindow({ stageWidth, stageHeight, tx, ty, scale, x1, y1, x2, y2 }) {
+  const left = clamp(tx + x1 * scale, 0, stageWidth);
+  const top = clamp(ty + y1 * scale, 0, stageHeight);
+  const right = clamp(tx + x2 * scale, 0, stageWidth);
+  const bottom = clamp(ty + y2 * scale, 0, stageHeight);
+
+  if (right - left < 8 || bottom - top < 8) {
+    return null;
+  }
+
+  return {
+    left,
+    top,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+function updateGuidedWindow(rect) {
+  if (!rect) {
+    dom.guidedWindow.classList.remove("is-visible");
+    return;
+  }
+
+  dom.guidedWindow.style.left = `${rect.left}px`;
+  dom.guidedWindow.style.top = `${rect.top}px`;
+  dom.guidedWindow.style.width = `${rect.width}px`;
+  dom.guidedWindow.style.height = `${rect.height}px`;
+  dom.guidedWindow.classList.add("is-visible");
 }
 
 async function loadPanelsForPage(page) {
