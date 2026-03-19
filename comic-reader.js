@@ -48,10 +48,12 @@ const dom = {
   readerPanelStatus: document.querySelector("#readerPanelStatus"),
   viewModeBtn: document.querySelector("#viewModeBtn"),
   pageDrawerToggleBtn: document.querySelector("#pageDrawerToggleBtn"),
+  devModeBtn: document.querySelector("#devModeBtn"),
   fullscreenBtn: document.querySelector("#fullscreenBtn"),
   prevPageBtn: document.querySelector("#prevPageBtn"),
   nextPageBtn: document.querySelector("#nextPageBtn"),
   pageStage: document.querySelector("#pageStage"),
+  pageDebugOverlay: document.querySelector("#pageDebugOverlay"),
   pageImage: document.querySelector("#pageImage"),
   guidedWindow: document.querySelector("#guidedWindow"),
   loadingOverlay: document.querySelector("#loadingOverlay"),
@@ -75,6 +77,7 @@ const state = {
   ui: {
     chromeVisible: true,
     drawerOpen: false,
+    devMode: false,
     hideTimer: null,
     suppressClickUntil: 0,
     gesture: null,
@@ -109,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initialize() {
   dom.readerView.dataset.chrome = "visible";
   dom.readerView.dataset.browser = "closed";
+  dom.readerView.dataset.dev = "off";
   dom.readerView.dataset.editor = "closed";
   state.library = await fetchJson(LIBRARY_PATH);
   renderLibrary();
@@ -134,6 +138,10 @@ function bindEvents() {
 
   dom.pageDrawerToggleBtn.addEventListener("click", () => {
     togglePageDrawer();
+  });
+
+  dom.devModeBtn.addEventListener("click", () => {
+    toggleDevMode();
   });
 
   dom.pageBrowserCloseBtn.addEventListener("click", () => {
@@ -276,6 +284,11 @@ function bindEvents() {
       case "F":
         event.preventDefault();
         dom.fullscreenBtn.click();
+        break;
+      case "d":
+      case "D":
+        event.preventDefault();
+        toggleDevMode();
         break;
       case "m":
       case "M":
@@ -478,6 +491,9 @@ async function syncToUrl() {
   const page = Number(params.get("page") || 1);
   const panel = Number(params.get("panel") || 1);
   const mode = params.get("mode");
+  const dev = params.get("dev") === "1";
+
+  setDevMode(dev, { syncHistory: false });
 
   if (!slug) {
     showLibrary();
@@ -494,11 +510,12 @@ async function syncToUrl() {
     page,
     panel: Number.isFinite(panel) ? panel - 1 : 0,
     mode: mode === "page" ? "page" : "guided",
+    dev,
     historyMode: "none"
   });
 }
 
-async function openBook(slug, { page = 1, panel = 0, mode = null, historyMode = "replace" } = {}) {
+async function openBook(slug, { page = 1, panel = 0, mode = null, dev = null, historyMode = "replace" } = {}) {
   const book = (state.library.books || []).find((item) => item.slug === slug);
   if (!book) {
     return;
@@ -514,6 +531,11 @@ async function openBook(slug, { page = 1, panel = 0, mode = null, historyMode = 
   }
 
   state.preferredMode = mode || state.currentManifest.defaultMode || "guided";
+  if (typeof dev === "boolean") {
+    setDevMode(dev, { syncHistory: false });
+  } else {
+    updateDevModeButton();
+  }
   showReader();
   await setPage(page, {
     historyMode,
@@ -567,6 +589,28 @@ function renderReaderShell() {
   dom.readerPageStatus.textContent = `Page 1 / ${state.pages.length}`;
   dom.readerPanelStatus.textContent = "Guided view";
   dom.pageBrowserCount.textContent = `Page 1 / ${state.pages.length}`;
+  updateDevModeButton();
+}
+
+function setDevMode(enabled, { syncHistory = true } = {}) {
+  state.ui.devMode = Boolean(enabled);
+  dom.readerView.dataset.dev = state.ui.devMode ? "on" : "off";
+  updateDevModeButton();
+  renderPageDebugOverlay();
+  applyViewTransform();
+
+  if (syncHistory) {
+    updateHistory("replace");
+  }
+}
+
+function toggleDevMode() {
+  setDevMode(!state.ui.devMode);
+}
+
+function updateDevModeButton() {
+  dom.devModeBtn.setAttribute("aria-pressed", String(state.ui.devMode));
+  dom.devModeBtn.classList.toggle("is-active", state.ui.devMode);
 }
 
 function buildPages(manifest) {
@@ -641,6 +685,7 @@ async function setPage(
   state.currentPage = nextPage;
   state.currentPanels = panels;
   state.currentPanelIndex = resolvePanelIndex(panelStrategy, panels, panelIndex);
+  renderPageDebugOverlay();
 
   dom.pageScrubber.value = String(nextPage);
   dom.pageImage.alt = `${state.currentManifest.title} page ${nextPage}`;
@@ -683,6 +728,7 @@ async function stepForward() {
   if (getEffectiveMode() === "guided" && state.currentPanels.length) {
     if (state.currentPanelIndex < state.currentPanels.length - 1) {
       state.currentPanelIndex += 1;
+      renderPageDebugOverlay();
       applyViewTransform();
       updateReaderStatus();
       updateNav();
@@ -701,6 +747,7 @@ async function stepBackward() {
   if (getEffectiveMode() === "guided" && state.currentPanels.length) {
     if (state.currentPanelIndex > 0) {
       state.currentPanelIndex -= 1;
+      renderPageDebugOverlay();
       applyViewTransform();
       updateReaderStatus();
       updateNav();
@@ -801,6 +848,7 @@ function applyViewTransform() {
   let tx = (stageWidth - imageWidth * scale) / 2;
   let ty = (stageHeight - imageHeight * scale) / 2;
   let guidedWindowRect = null;
+  const transform = () => `translate(${tx}px, ${ty}px) scale(${scale})`;
 
   if (getEffectiveMode() === "guided" && state.currentPanels.length) {
     const panel = state.currentPanels[state.currentPanelIndex] || null;
@@ -841,8 +889,42 @@ function applyViewTransform() {
     }
   }
 
-  dom.pageImage.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  const nextTransform = transform();
+  dom.pageImage.style.transform = nextTransform;
+  dom.pageDebugOverlay.style.width = `${imageWidth}px`;
+  dom.pageDebugOverlay.style.height = `${imageHeight}px`;
+  dom.pageDebugOverlay.style.transform = nextTransform;
   updateGuidedWindow(guidedWindowRect);
+}
+
+function renderPageDebugOverlay() {
+  dom.pageDebugOverlay.innerHTML = "";
+
+  if (!state.currentPanels.length) {
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const [index, panel] of state.currentPanels.entries()) {
+    const box = document.createElement("div");
+    box.className = "page-debug-box";
+    if (index === state.currentPanelIndex) {
+      box.classList.add("is-active");
+    }
+    box.style.left = `${panel.x * 100}%`;
+    box.style.top = `${panel.y * 100}%`;
+    box.style.width = `${panel.w * 100}%`;
+    box.style.height = `${panel.h * 100}%`;
+
+    const label = document.createElement("span");
+    label.className = "page-debug-box-label";
+    label.textContent = String(index + 1);
+    box.appendChild(label);
+
+    fragment.appendChild(box);
+  }
+
+  dom.pageDebugOverlay.appendChild(fragment);
 }
 
 function projectGuidedWindow({ stageWidth, stageHeight, tx, ty, scale, x1, y1, x2, y2 }) {
@@ -968,6 +1050,12 @@ function updateHistory(mode) {
     url.searchParams.delete("page");
     url.searchParams.delete("panel");
     url.searchParams.delete("mode");
+  }
+
+  if (state.ui.devMode) {
+    url.searchParams.set("dev", "1");
+  } else {
+    url.searchParams.delete("dev");
   }
 
   if (mode === "push") {
@@ -1462,6 +1550,7 @@ async function syncReaderWithPanelOverride(pageNumber) {
 
   state.currentPanels = panels;
   state.currentPanelIndex = panels.length ? clamp(state.currentPanelIndex, 0, panels.length - 1) : 0;
+  renderPageDebugOverlay();
   updateViewModeButton();
   updateReaderStatus();
   updateNav();
