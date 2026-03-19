@@ -407,6 +407,23 @@ function bindEvents() {
     void finishGesture(event);
   });
 
+  dom.pageDebugOverlay.addEventListener("click", async (event) => {
+    const box = event.target.closest(".page-debug-box");
+    if (!box || !state.ui.devMode || dom.readerView.hidden) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const selectedIndex = Number(box.dataset.panelIndex);
+    if (!Number.isFinite(selectedIndex)) {
+      return;
+    }
+
+    await openPanelEditor(state.currentPage, { selectedIndex });
+  });
+
   window.addEventListener("resize", () => {
     applyViewTransform();
     if (state.editor.open) {
@@ -908,6 +925,7 @@ function renderPageDebugOverlay() {
   for (const [index, panel] of state.currentPanels.entries()) {
     const box = document.createElement("div");
     box.className = "page-debug-box";
+    box.dataset.panelIndex = String(index);
     if (index === state.currentPanelIndex) {
       box.classList.add("is-active");
     }
@@ -1126,7 +1144,7 @@ function togglePageDrawer(force) {
 }
 
 function isInteractiveTarget(target) {
-  return Boolean(target.closest("button, input"));
+  return Boolean(target.closest("button, input, .page-debug-box"));
 }
 
 function preloadNearbyPages() {
@@ -1245,7 +1263,7 @@ function clearStoredPanels(page) {
   state.panelCache.delete(page.number);
 }
 
-async function openPanelEditor(pageNumber = state.currentPage) {
+async function openPanelEditor(pageNumber = state.currentPage, { selectedIndex = null } = {}) {
   if (!state.currentBook || !state.pages.length) {
     return;
   }
@@ -1260,7 +1278,7 @@ async function openPanelEditor(pageNumber = state.currentPage) {
   dom.panelEditor.hidden = false;
   dom.panelEditor.setAttribute("aria-hidden", "false");
 
-  await loadPanelEditorPage(pageNumber);
+  await loadPanelEditorPage(pageNumber, { selectedIndex });
   dom.panelEditorCloseBtn.focus({ preventScroll: true });
 }
 
@@ -1281,7 +1299,7 @@ function closePanelEditor({ restoreFocus = true } = {}) {
   }
 }
 
-async function loadPanelEditorPage(pageNumber) {
+async function loadPanelEditorPage(pageNumber, { selectedIndex = null } = {}) {
   if (!state.editor.open) {
     return;
   }
@@ -1303,7 +1321,7 @@ async function loadPanelEditorPage(pageNumber) {
   state.editor.interaction = null;
   state.editor.imgBox = { left: 0, top: 0, width: 1, height: 1 };
   state.editor.panels = clonePanels(panels);
-  state.editor.selectedId = state.editor.panels[0] ? state.editor.panels[0].id : null;
+  state.editor.selectedId = resolveEditorSelectedId(state.editor.panels, selectedIndex);
 
   dom.panelEditorImage.alt = `${state.currentManifest.title} page ${page.number}`;
   dom.panelEditorImage.dataset.page = String(page.number);
@@ -1510,6 +1528,21 @@ function updatePanelEditorDraft() {
   dom.panelEditorDraft.style.top = `${top + rect.y * height}px`;
   dom.panelEditorDraft.style.width = `${rect.w * width}px`;
   dom.panelEditorDraft.style.height = `${rect.h * height}px`;
+}
+
+function resolveEditorSelectedId(panels, selectedIndex = null) {
+  if (!panels.length) {
+    return null;
+  }
+
+  if (Number.isInteger(selectedIndex)) {
+    const panel = panels[clamp(selectedIndex, 0, panels.length - 1)];
+    if (panel) {
+      return panel.id;
+    }
+  }
+
+  return panels[0].id;
 }
 
 function setEditorPanels(panels, { selectedId = null, persist = true } = {}) {
