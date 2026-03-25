@@ -306,25 +306,6 @@ function bindEvents() {
     renderPanelEditor();
   });
 
-  dom.pageStage.addEventListener("click", (event) => {
-    if (performance.now() < state.ui.suppressClickUntil) {
-      return;
-    }
-    if (isInteractiveTarget(event.target)) {
-      return;
-    }
-    if (state.ui.drawerOpen) {
-      togglePageDrawer(false);
-      return;
-    }
-
-    if (getStageZoneFromClientX(event.clientX) !== "center") {
-      return;
-    }
-
-    handleCenterStageTap(event);
-  });
-
   dom.pageStage.addEventListener("pointerdown", (event) => {
     if (isInteractiveTarget(event.target)) {
       return;
@@ -376,13 +357,28 @@ function bindEvents() {
     state.ui.gesture = null;
 
     if (moved && Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.2) {
-      state.ui.suppressClickUntil = performance.now() + 350;
       if (dx < 0) {
         await stepForward();
       } else {
         await stepBackward();
       }
+      return;
     }
+
+    if (moved) {
+      return;
+    }
+
+    if (state.ui.drawerOpen) {
+      togglePageDrawer(false);
+      return;
+    }
+
+    if (getStageZoneFromClientX(event.clientX) !== "center") {
+      return;
+    }
+
+    handleCenterStageTap(event);
   };
 
   dom.pageStage.addEventListener("pointerup", (event) => {
@@ -1155,7 +1151,11 @@ function togglePageDrawer(force) {
 }
 
 function isInteractiveTarget(target) {
-  return Boolean(target.closest("button, input, .page-debug-box"));
+  const debugBox = target.closest(".page-debug-box");
+  if (debugBox && !state.ui.devMode) {
+    return false;
+  }
+  return Boolean(target.closest("button, input") || (state.ui.devMode && debugBox));
 }
 
 function preloadNearbyPages() {
