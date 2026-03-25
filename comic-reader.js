@@ -47,7 +47,8 @@ const dom = {
   readerByline: document.querySelector("#readerByline"),
   readerPageStatus: document.querySelector("#readerPageStatus"),
   readerPanelStatus: document.querySelector("#readerPanelStatus"),
-  viewModeBtn: document.querySelector("#viewModeBtn"),
+  guidedModeBtn: document.querySelector("#guidedModeBtn"),
+  pageModeBtn: document.querySelector("#pageModeBtn"),
   pageDrawerToggleBtn: document.querySelector("#pageDrawerToggleBtn"),
   devModeBtn: document.querySelector("#devModeBtn"),
   fullscreenBtn: document.querySelector("#fullscreenBtn"),
@@ -133,8 +134,12 @@ function bindEvents() {
     closeBook({ historyMode: "push" });
   });
 
-  dom.viewModeBtn.addEventListener("click", () => {
-    togglePreferredMode();
+  dom.guidedModeBtn.addEventListener("click", () => {
+    setPreferredMode("guided");
+  });
+
+  dom.pageModeBtn.addEventListener("click", () => {
+    setPreferredMode("page");
   });
 
   dom.pageDrawerToggleBtn.addEventListener("click", () => {
@@ -718,7 +723,7 @@ async function setPage(
     applyViewTransform();
   }
 
-  updateViewModeButton();
+  updateViewModeButtons();
   updateReaderStatus();
   updateNav();
   updateHistory(historyMode);
@@ -810,29 +815,37 @@ function updateReaderStatus() {
   dom.pageBrowserCount.textContent = pageText;
 }
 
-function updateViewModeButton() {
-  if (!state.currentPanels.length) {
-    dom.viewModeBtn.textContent = "Page";
-    dom.viewModeBtn.disabled = true;
-    dom.viewModeBtn.setAttribute("aria-pressed", "false");
-    dom.viewModeBtn.setAttribute("aria-label", "Page view only");
-    return;
-  }
+function updateViewModeButtons() {
+  const guidedAvailable = state.currentPanels.length > 0;
+  const effectiveMode = getEffectiveMode();
+  const guidedActive = guidedAvailable && effectiveMode === "guided";
+  const pageActive = effectiveMode === "page";
 
-  dom.viewModeBtn.disabled = false;
-  const guided = getEffectiveMode() === "guided";
-  dom.viewModeBtn.textContent = guided ? "Guided" : "Page";
-  dom.viewModeBtn.setAttribute("aria-pressed", String(guided));
-  dom.viewModeBtn.setAttribute("aria-label", guided ? "Switch to full page view" : "Switch to guided view");
+  dom.guidedModeBtn.disabled = !guidedAvailable;
+  dom.guidedModeBtn.setAttribute("aria-pressed", String(guidedActive));
+  dom.guidedModeBtn.classList.toggle("is-active", guidedActive);
+  dom.guidedModeBtn.setAttribute("aria-label", guidedAvailable ? "Switch to guided view" : "Guided view unavailable on this page");
+  dom.guidedModeBtn.title = guidedAvailable ? "Switch to guided view" : "Guided view unavailable on this page";
+
+  dom.pageModeBtn.disabled = false;
+  dom.pageModeBtn.setAttribute("aria-pressed", String(pageActive));
+  dom.pageModeBtn.classList.toggle("is-active", pageActive);
+  dom.pageModeBtn.setAttribute("aria-label", "Switch to full page view");
+  dom.pageModeBtn.title = "Switch to full page view";
 }
 
 function togglePreferredMode({ reveal = true } = {}) {
-  if (!state.currentPanels.length) {
+  const nextMode = getEffectiveMode() === "guided" ? "page" : "guided";
+  setPreferredMode(nextMode, { reveal });
+}
+
+function setPreferredMode(nextMode, { reveal = true } = {}) {
+  if (nextMode === "guided" && !state.currentPanels.length) {
     return;
   }
 
-  state.preferredMode = state.preferredMode === "guided" ? "page" : "guided";
-  updateViewModeButton();
+  state.preferredMode = nextMode === "page" ? "page" : "guided";
+  updateViewModeButtons();
   updateReaderStatus();
   applyViewTransform();
   updateNav();
@@ -1586,7 +1599,7 @@ async function syncReaderWithPanelOverride(pageNumber) {
   state.currentPanels = panels;
   state.currentPanelIndex = panels.length ? clamp(state.currentPanelIndex, 0, panels.length - 1) : 0;
   renderPageDebugOverlay();
-  updateViewModeButton();
+  updateViewModeButtons();
   updateReaderStatus();
   updateNav();
   applyViewTransform();

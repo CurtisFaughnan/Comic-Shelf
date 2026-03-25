@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#110d2b" />
     <title>Faughnan Comics</title>
-    <link rel="stylesheet" href="./comic-reader.css?v=20260319c" />
+    <link rel="stylesheet" href="./comic-reader.css?v=20260325b" />
   </head>
   <body class="comic-body">
     <div class="backdrop-layer" aria-hidden="true"></div>
@@ -58,7 +58,10 @@
                 <p id="readerPanelStatus" class="reader-progress-secondary">Guided view</p>
               </div>
               <div class="reader-actions">
-                <button id="viewModeBtn" class="reader-tool-button" type="button">Guided</button>
+                <div class="reader-mode-switch" role="group" aria-label="Reading mode">
+                  <button id="guidedModeBtn" class="reader-tool-button" type="button" aria-pressed="true">Guided</button>
+                  <button id="pageModeBtn" class="reader-tool-button" type="button" aria-pressed="false">Page</button>
+                </div>
                 <button id="pageDrawerToggleBtn" class="reader-tool-button" type="button" aria-expanded="false">Pages</button>
                 <button id="devModeBtn" class="reader-tool-button" type="button" aria-pressed="false">Dev</button>
                 <button id="fullscreenBtn" class="reader-tool-button" type="button">Full</button>
@@ -166,6 +169,6 @@
       </main>
     </div>
 
-    <script type="module" src="./comic-reader.js?v=20260319c"></script>
+    <script type="module" src="./comic-reader.js?v=20260325b"></script>
   </body>
 </html>

@@ -389,6 +389,18 @@ button {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reader-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
 }
 
 .reader-nav-button,
@@ -400,11 +412,31 @@ button {
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
   backdrop-filter: blur(16px);
+  white-space: nowrap;
   transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, opacity 180ms ease;
 }
 
 .reader-tool-button {
   min-width: 68px;
+}
+
+.reader-mode-switch .reader-tool-button {
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.reader-mode-switch .reader-tool-button:hover,
+.reader-mode-switch .reader-tool-button:focus-visible {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.reader-mode-switch .reader-tool-button.is-active,
+.reader-mode-switch .reader-tool-button[aria-pressed="true"] {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .reader-nav-button:hover,
@@ -1115,13 +1147,24 @@ button {
 
   .reader-actions {
     gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .reader-mode-switch {
+    gap: 3px;
+    padding: 3px;
   }
 
   .reader-nav-button,
   .reader-tool-button {
     min-height: 36px;
-    padding: 0 12px;
+    min-width: 0;
+    padding: 0 10px;
     font-size: 0.68rem;
+  }
+
+  .reader-mode-switch .reader-tool-button {
+    padding: 0 9px;
   }
 
   .page-browser {
