@@ -353,6 +353,14 @@ button {
   transition: opacity 220ms ease, transform 220ms ease;
 }
 
+.reader-view[data-dev="off"] .reader-topbar {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 0;
+  background: none;
+}
+
 .reader-progress {
   min-width: 0;
   display: grid;
@@ -392,6 +400,11 @@ button {
   flex-wrap: wrap;
 }
 
+.reader-view[data-dev="off"] .reader-progress,
+.reader-view[data-dev="off"] .reader-actions {
+  display: none;
+}
+
 .reader-mode-switch {
   display: inline-flex;
   align-items: center;
@@ -414,6 +427,11 @@ button {
   backdrop-filter: blur(16px);
   white-space: nowrap;
   transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, opacity 180ms ease;
+}
+
+.reader-view[data-dev="off"] .reader-nav-button {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.72);
 }
 
 .reader-tool-button {
@@ -1138,6 +1156,10 @@ button {
     grid-template-columns: auto 1fr;
     align-items: start;
     padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 18px;
+  }
+
+  .reader-view[data-dev="off"] .reader-topbar {
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 0;
   }
 
   .reader-progress {

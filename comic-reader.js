@@ -22,7 +22,6 @@ const dom = {
   pageBrowser: document.querySelector("#pageBrowser"),
   pageBrowserBackdrop: document.querySelector("#pageBrowserBackdrop"),
   pageBrowserCloseBtn: document.querySelector("#pageBrowserCloseBtn"),
-  openEditorBtn: document.querySelector("#openEditorBtn"),
   panelEditor: document.querySelector("#panelEditor"),
   panelEditorBackdrop: document.querySelector("#panelEditorBackdrop"),
   panelEditorTitle: document.querySelector("#panelEditorTitle"),
@@ -50,7 +49,6 @@ const dom = {
   guidedModeBtn: document.querySelector("#guidedModeBtn"),
   pageModeBtn: document.querySelector("#pageModeBtn"),
   pageDrawerToggleBtn: document.querySelector("#pageDrawerToggleBtn"),
-  devModeBtn: document.querySelector("#devModeBtn"),
   fullscreenBtn: document.querySelector("#fullscreenBtn"),
   prevPageBtn: document.querySelector("#prevPageBtn"),
   nextPageBtn: document.querySelector("#nextPageBtn"),
@@ -146,20 +144,12 @@ function bindEvents() {
     togglePageDrawer();
   });
 
-  dom.devModeBtn.addEventListener("click", () => {
-    toggleDevMode();
-  });
-
   dom.pageBrowserCloseBtn.addEventListener("click", () => {
     togglePageDrawer(false);
   });
 
   dom.pageBrowserBackdrop.addEventListener("click", () => {
     togglePageDrawer(false);
-  });
-
-  dom.openEditorBtn.addEventListener("click", async () => {
-    await openPanelEditor(state.currentPage);
   });
 
   dom.panelEditorCloseBtn.addEventListener("click", () => {
@@ -291,20 +281,10 @@ function bindEvents() {
         event.preventDefault();
         dom.fullscreenBtn.click();
         break;
-      case "d":
-      case "D":
-        event.preventDefault();
-        toggleDevMode();
-        break;
       case "m":
       case "M":
         event.preventDefault();
         togglePreferredMode();
-        break;
-      case "e":
-      case "E":
-        event.preventDefault();
-        await openPanelEditor(state.currentPage);
         break;
       default:
         break;
@@ -514,18 +494,19 @@ async function syncToUrl() {
   const page = Number(params.get("page") || 1);
   const panel = Number(params.get("panel") || 1);
   const mode = params.get("mode");
-  const dev = params.get("dev") === "1";
 
-  setDevMode(dev, { syncHistory: false });
+  setDevMode(false, { syncHistory: false });
 
   if (!slug) {
     showLibrary();
+    updateHistory("replace");
     return;
   }
 
   const book = (state.library.books || []).find((item) => item.slug === slug);
   if (!book) {
     showLibrary();
+    updateHistory("replace");
     return;
   }
 
@@ -533,9 +514,10 @@ async function syncToUrl() {
     page,
     panel: Number.isFinite(panel) ? panel - 1 : 0,
     mode: mode === "page" ? "page" : "guided",
-    dev,
+    dev: false,
     historyMode: "none"
   });
+  updateHistory("replace");
 }
 
 async function openBook(slug, { page = 1, panel = 0, mode = null, dev = null, historyMode = "replace" } = {}) {
@@ -595,7 +577,13 @@ function showReader() {
   dom.pageStage.focus();
   togglePageDrawer(false);
   closePanelEditor({ restoreFocus: false });
-  revealChrome({ immediate: true });
+  clearPendingCenterTap();
+  clearTimeout(state.ui.hideTimer);
+  if (state.ui.devMode) {
+    revealChrome({ immediate: true });
+    return;
+  }
+  setChromeVisible(false);
 }
 
 function renderReaderShell() {
@@ -622,6 +610,15 @@ function setDevMode(enabled, { syncHistory = true } = {}) {
   renderPageDebugOverlay();
   applyViewTransform();
 
+  if (!dom.readerView.hidden && !state.editor.open) {
+    if (state.ui.devMode || state.ui.drawerOpen) {
+      revealChrome({ immediate: true });
+    } else {
+      clearPendingCenterTap();
+      setChromeVisible(false);
+    }
+  }
+
   if (syncHistory) {
     updateHistory("replace");
   }
@@ -632,6 +629,9 @@ function toggleDevMode() {
 }
 
 function updateDevModeButton() {
+  if (!dom.devModeBtn) {
+    return;
+  }
   dom.devModeBtn.setAttribute("aria-pressed", String(state.ui.devMode));
   dom.devModeBtn.classList.toggle("is-active", state.ui.devMode);
 }
@@ -1085,11 +1085,7 @@ function updateHistory(mode) {
     url.searchParams.delete("mode");
   }
 
-  if (state.ui.devMode) {
-    url.searchParams.set("dev", "1");
-  } else {
-    url.searchParams.delete("dev");
-  }
+  url.searchParams.delete("dev");
 
   if (mode === "push") {
     history.pushState({}, "", url);
