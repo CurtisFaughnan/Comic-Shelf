@@ -9,6 +9,7 @@ const DOUBLE_TAP_DISTANCE_PX = 28;
 const PANEL_OVERRIDE_PREFIX = "faughnan-panels:";
 const MIN_EDITOR_PANEL_SIZE = 0.02;
 const EDITOR_RESIZE_HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+const GUIDED_TOP_ALIGN_MIN_WIDTH = 760;
 
 const dom = {
   body: document.body,
@@ -887,7 +888,8 @@ function applyViewTransform() {
 
       const topInset = state.ui.chromeVisible ? 88 : 0;
       const bottomInset = state.ui.chromeVisible ? 28 : 18;
-      if (windowHeight * scale < stageHeight - topInset - bottomInset) {
+      const shouldTopAlignGuided = stageWidth >= GUIDED_TOP_ALIGN_MIN_WIDTH;
+      if (shouldTopAlignGuided && windowHeight * scale < stageHeight - topInset - bottomInset) {
         const topAlignedTy = topInset - y1 * scale;
         ty = Math.min(ty, topAlignedTy);
       }
