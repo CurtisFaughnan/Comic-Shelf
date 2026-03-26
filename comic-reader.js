@@ -17,6 +17,10 @@ const dom = {
   siteTagline: document.querySelector("#siteTagline"),
   shareHint: document.querySelector("#shareHint"),
   libraryView: document.querySelector("#libraryView"),
+  featuredTitle: document.querySelector("#featuredTitle"),
+  featuredDescription: document.querySelector("#featuredDescription"),
+  featuredByline: document.querySelector("#featuredByline"),
+  featuredCoverImage: document.querySelector("#featuredCoverImage"),
   readerView: document.querySelector("#readerView"),
   readerTopbar: document.querySelector("#readerTopbar"),
   pageBrowser: document.querySelector("#pageBrowser"),
@@ -448,6 +452,15 @@ function renderLibrary() {
   dom.siteTitle.textContent = state.library.siteTitle || "Comic Library";
   dom.siteTagline.textContent = state.library.siteTagline || "Tap a book cover to start reading.";
   dom.shareHint.textContent = state.library.shareHint || "Share this page as a link or QR code.";
+
+  const featuredBook = (state.library.books || [])[0] || null;
+  if (featuredBook) {
+    dom.featuredTitle.textContent = featuredBook.title;
+    dom.featuredDescription.textContent = featuredBook.description || "Open the comic and start reading.";
+    dom.featuredByline.textContent = featuredBook.byline || "";
+    dom.featuredCoverImage.src = featuredBook.shelfCover;
+    dom.featuredCoverImage.alt = `${featuredBook.title} cover`;
+  }
 
   dom.bookGrid.innerHTML = "";
   const fragment = document.createDocumentFragment();

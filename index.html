@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#110d2b" />
     <title>Faughnan Comics</title>
-    <link rel="stylesheet" href="./comic-reader.css?v=20260325d" />
+    <link rel="stylesheet" href="./comic-reader.css?v=20260325e" />
   </head>
   <body class="comic-body">
     <div class="backdrop-layer" aria-hidden="true"></div>
@@ -23,17 +23,38 @@
         <section id="libraryView" class="library-view">
           <article class="hero-card">
             <div class="hero-copy">
-              <p class="section-kicker">Featured Release</p>
-              <h2>Phone-friendly comic reading.</h2>
-              <p>
-                Open the book, read panel to panel, and keep the comic full-screen
-                while the controls stay out of the way.
+              <p class="section-kicker">Featured Comic</p>
+              <h2 id="featuredTitle">Cool Kids: Stretch</h2>
+              <p id="featuredDescription">
+                Open the comic, read it panel to panel, and switch to full page whenever you want.
               </p>
             </div>
             <div class="hero-actions">
-              <button id="openFirstBookBtn" class="primary-button" type="button">Open featured book</button>
-              <p class="hero-note">Guided view, page view fallback, tap zones, thumbnails, and fullscreen are built in.</p>
+              <div class="hero-featured-book">
+                <div class="hero-cover">
+                  <img id="featuredCoverImage" src="./comics/cool-kids-stretch/thumbnails/01.jpg" alt="Cool Kids: Stretch cover" loading="lazy" />
+                </div>
+                <p id="featuredByline" class="hero-note">Written by Blake Faughnan | Art by Curtis Faughnan</p>
+                <button id="openFirstBookBtn" class="primary-button" type="button">Read the comic</button>
+                <p class="hero-note">Guided panel view, full page mode, and a clean reading screen are built in.</p>
+              </div>
             </div>
+          </article>
+
+          <article class="hero-companion">
+            <div class="hero-companion-copy">
+              <p class="section-kicker">More Cool Kids</p>
+              <h3>If you want more Cool Kids</h3>
+              <p class="hero-note">The movie comes before the comic.</p>
+            </div>
+            <a
+              class="ghost-button hero-link"
+              href="https://www.youtube.com/watch?v=LtZVxccR3wY&list=PL49cjnFpQQEuz9RBzSyv_grvr_XyFSFZF"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Watch on YouTube
+            </a>
           </article>
 
           <section class="shelf-section" aria-labelledby="bookshelfTitle">
@@ -167,6 +188,6 @@
       </main>
     </div>
 
-    <script type="module" src="./comic-reader.js?v=20260325d"></script>
+    <script type="module" src="./comic-reader.js?v=20260325e"></script>
   </body>
 </html>
