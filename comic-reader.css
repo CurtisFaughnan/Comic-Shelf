@@ -239,9 +239,27 @@ button {
     var(--card-strong);
 }
 
+.hero-companion-media {
+  flex: 0 0 min(240px, 30vw);
+  display: block;
+  aspect-ratio: 16 / 9;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.hero-companion-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .hero-companion-copy {
   display: grid;
   gap: 8px;
+  flex: 1 1 auto;
 }
 
 .hero-companion h3 {
@@ -1200,6 +1218,11 @@ button {
   .hero-companion {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .hero-companion-media {
+    width: min(100%, 420px);
+    flex-basis: auto;
   }
 
   .page-browser-sheet {
